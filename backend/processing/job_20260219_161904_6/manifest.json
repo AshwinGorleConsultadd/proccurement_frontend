@@ -1,0 +1,187 @@
+{
+  "images": [
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop1.png",
+      "filename": "crop1.png",
+      "label": "full",
+      "page_num": 1,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop2.png",
+      "filename": "crop2.png",
+      "label": "full",
+      "page_num": 2,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop3.png",
+      "filename": "crop3.png",
+      "label": "full",
+      "page_num": 3,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop4.png",
+      "filename": "crop4.png",
+      "label": "full",
+      "page_num": 4,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop5.png",
+      "filename": "crop5.png",
+      "label": "full",
+      "page_num": 5,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop6.png",
+      "filename": "crop6.png",
+      "label": "full",
+      "page_num": 6,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop7.png",
+      "filename": "crop7.png",
+      "label": "full",
+      "page_num": 7,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop8.png",
+      "filename": "crop8.png",
+      "label": "full",
+      "page_num": 8,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop9.png",
+      "filename": "crop9.png",
+      "label": "full",
+      "page_num": 9,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop10.png",
+      "filename": "crop10.png",
+      "label": "full",
+      "page_num": 10,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop11.png",
+      "filename": "crop11.png",
+      "label": "full",
+      "page_num": 11,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop12.png",
+      "filename": "crop12.png",
+      "label": "full",
+      "page_num": 12,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop13.png",
+      "filename": "crop13.png",
+      "label": "full",
+      "page_num": 13,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop14.png",
+      "filename": "crop14.png",
+      "label": "full",
+      "page_num": 14,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop15.png",
+      "filename": "crop15.png",
+      "label": "full",
+      "page_num": 15,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop16.png",
+      "filename": "crop16.png",
+      "label": "full",
+      "page_num": 16,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop17.png",
+      "filename": "crop17.png",
+      "label": "full",
+      "page_num": 17,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop18.png",
+      "filename": "crop18.png",
+      "label": "full",
+      "page_num": 18,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop19.png",
+      "filename": "crop19.png",
+      "label": "full",
+      "page_num": 19,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop20.png",
+      "filename": "crop20.png",
+      "label": "full",
+      "page_num": 20,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop21.png",
+      "filename": "crop21.png",
+      "label": "full",
+      "page_num": 21,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop22.png",
+      "filename": "crop22.png",
+      "label": "full",
+      "page_num": 22,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop23.png",
+      "filename": "crop23.png",
+      "label": "full",
+      "page_num": 23,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop24.png",
+      "filename": "crop24.png",
+      "label": "full",
+      "page_num": 24,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop25.png",
+      "filename": "crop25.png",
+      "label": "full",
+      "page_num": 25,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_161904_6/sectioned_crops/crop26.png",
+      "filename": "crop26.png",
+      "label": "full",
+      "page_num": 26,
+      "sub_index": 0
+    }
+  ],
+  "total": 26
+}
