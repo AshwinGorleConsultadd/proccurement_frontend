@@ -945,6 +945,27 @@ def delete_project(project_id: int):
         db.close()
 
 
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+
+@app.patch("/projects/{project_id}")
+def update_project(project_id: int, body: ProjectUpdate):
+    """Update a project's name."""
+    db = SessionLocal()
+    try:
+        proj = db.query(Project).filter(Project.id == project_id).first()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+        if body.name is not None:
+            proj.name = body.name.strip() or proj.name
+        proj.updated_at = datetime.now().isoformat()
+        db.commit(); db.refresh(proj)
+        return ProjectOut.model_validate(proj)
+    finally:
+        db.close()
+
+
+
 @app.get("/projects/{project_id}/metadata")
 def get_project_metadata(project_id: int):
     """Return the saved JSON metadata for a project (for download in UI)."""

@@ -1,5 +1,5 @@
 
-import { BudgetTable } from "../components/BudgetTable"
+import { BudgetTable } from "../../components/budget/BudgetTable"
 import { Receipt } from "lucide-react"
 
 export function BudgetPage() {

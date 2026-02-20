@@ -7,6 +7,7 @@ import {
     fetchProjectPages,
     fetchAvailablePages,
     updateProjectPages,
+    renameProject,
 } from '../actions/project/projectActions'
 
 const initialState = {
@@ -112,6 +113,13 @@ const projectSlice = createSlice({
             })
             .addCase(updateProjectPages.rejected, (state) => {
                 state.pagesUpdating = false
+            })
+        // ── Rename project ─────────────────────────────────────────────────
+        builder
+            .addCase(renameProject.fulfilled, (state, action) => {
+                const updated = action.payload
+                const proj = state.projects.find((p) => p.id === updated.id)
+                if (proj) proj.name = updated.name
             })
     },
 })

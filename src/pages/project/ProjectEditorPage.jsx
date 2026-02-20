@@ -1,0 +1,581 @@
+import { useEffect, useState, useMemo, useRef } from "react"
+import { useParams, useNavigate } from "react-router-dom"
+import { useProjects } from "../../redux/hooks/project/useProjects"
+import { BudgetTable } from "../../components/budget/BudgetTable"
+import { Button } from "../../components/ui/button"
+import {
+    ArrowLeft,
+    Loader2,
+    Trash2,
+    Plus,
+    Download,
+    CheckSquare,
+    Square,
+    ImageOff,
+    ChevronDown,
+    ChevronRight,
+    Images,
+    FolderOpen,
+    Save,
+    RefreshCw,
+    PenSquare,
+    Receipt,
+    BarChart3,
+    FileJson,
+    CalendarDays,
+    TrendingUp,
+    Package,
+    Layers,
+    Pencil,
+    Check,
+    X,
+} from "lucide-react"
+
+const BASE = "http://localhost:8000"
+
+/* ── Tiny image thumbnail card ─────────────────────────────────────────── */
+function ThumbCard({ img, mode, checked, onToggle }) {
+    const [err, setErr] = useState(false)
+    const url = `${BASE}${img.url}`
+    return (
+        <div
+            onClick={onToggle}
+            title={img.filename}
+            className={`relative group cursor-pointer rounded-xl overflow-hidden transition-all duration-200 border-2 select-none
+                ${checked
+                    ? mode === "remove"
+                        ? "border-red-500 shadow-lg shadow-red-500/20 ring-2 ring-red-500/30"
+                        : "border-emerald-500 shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/30"
+                    : "border-border hover:border-violet-400/60 hover:shadow-md"
+                }`}
+        >
+            <div className="aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden">
+                {err ? (
+                    <div className="flex flex-col items-center gap-1 text-muted-foreground/40">
+                        <ImageOff className="h-8 w-8" />
+                        <span className="text-[10px]">Not found</span>
+                    </div>
+                ) : (
+                    <img src={url} alt={img.filename}
+                        className="object-contain w-full h-full p-1 transition-transform duration-200 group-hover:scale-105"
+                        onError={() => setErr(true)}
+                    />
+                )}
+            </div>
+            <div className="absolute top-2 right-2">
+                <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shadow-sm transition-all duration-150
+                    ${checked
+                        ? mode === "remove" ? "bg-red-500 border-red-500" : "bg-emerald-500 border-emerald-500"
+                        : "bg-background/80 border-border group-hover:border-violet-400/60"
+                    }`}>
+                    {checked && (
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                    )}
+                </div>
+            </div>
+            <div className="absolute bottom-2 left-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider bg-background/90 backdrop-blur-sm border border-border/60 text-muted-foreground rounded-md px-1.5 py-0.5">
+                    {img.label || img.filename}
+                </span>
+            </div>
+            <div className={`px-2.5 py-1.5 text-[10px] font-medium truncate border-t transition-colors
+                ${checked
+                    ? mode === "remove"
+                        ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200/50"
+                        : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200/50"
+                    : "bg-card text-muted-foreground border-border/50"
+                }`}>
+                {img.filename}
+            </div>
+        </div>
+    )
+}
+
+/* ── Collapsible page group ─────────────────────────────────────────────── */
+function PageGroup({ page, images, mode, checked, onToggle }) {
+    const [open, setOpen] = useState(true)
+    const checkedCount = images.filter(img => checked[img.filename]).length
+    return (
+        <div className="rounded-xl border border-border/60 overflow-hidden">
+            <button type="button" onClick={() => setOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left gap-3">
+                <div className="flex items-center gap-3">
+                    {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                    <span className="font-semibold text-sm">Page {page}</span>
+                    <span className="text-xs text-muted-foreground">{images.length} image{images.length !== 1 ? "s" : ""}</span>
+                </div>
+                {checkedCount > 0 && (
+                    <span className={`text-xs font-semibold rounded-full px-2.5 py-0.5 border
+                        ${mode === "remove"
+                            ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800/50"
+                            : "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50"
+                        }`}>
+                        {checkedCount} marked
+                    </span>
+                )}
+            </button>
+            {open && (
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    {images.map(img => (
+                        <ThumbCard key={img.filename} img={img} mode={mode}
+                            checked={!!checked[img.filename]} onToggle={() => onToggle(img.filename)} />
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+/* ── Editor Tab ─────────────────────────────────────────────────────────── */
+function EditorTab({ project }) {
+    const { projectPages, availablePages, pagesLoading, availableLoading,
+        pagesUpdating, loadProjectPages, loadAvailablePages, updatePages, clearPages, downloadMetadata } = useProjects()
+
+    const [subTab, setSubTab] = useState("saved")
+    const [marked, setMarked] = useState({})
+    const [downloadingId, setDownloadingId] = useState(null)
+    const [saveSuccess, setSaveSuccess] = useState(false)
+    const id = project.id
+    const savedData = projectPages[id]
+    const allData = availablePages[id]
+
+    useEffect(() => { loadProjectPages(id) }, [id, loadProjectPages])
+    useEffect(() => { if (subTab === "add" && !allData) loadAvailablePages(id) }, [subTab, id, allData, loadAvailablePages])
+    useEffect(() => { return () => clearPages(id) }, [id, clearPages])
+    useEffect(() => { setMarked({}) }, [subTab])
+
+    const toggleMark = (fn) => setMarked(prev => ({ ...prev, [fn]: !prev[fn] }))
+    const markedList = Object.entries(marked).filter(([, v]) => v).map(([k]) => k)
+    const hasMarked = markedList.length > 0
+    const savedImages = savedData?.images ?? []
+    const allImages = allData?.images ?? []
+    const savedFilenames = useMemo(() => new Set(savedImages.map(i => i.filename)), [savedImages])
+    const addableImages = useMemo(() => allImages.filter(img => !savedFilenames.has(img.filename)), [allImages, savedFilenames])
+
+    function groupByPage(images) {
+        const acc = {}
+        for (const img of images) {
+            const p = img.page_number ?? img.page_num ?? 0
+            if (!acc[p]) acc[p] = []
+            acc[p].push(img)
+        }
+        return acc
+    }
+
+    const activeImages = subTab === "saved" ? savedImages : addableImages
+    const activeGrouped = groupByPage(activeImages)
+    const activeLoading = subTab === "saved" ? pagesLoading : availableLoading
+    const pages = Object.keys(activeGrouped).sort((a, b) => Number(a) - Number(b))
+
+    const handleSave = async () => {
+        if (!hasMarked) return
+        const payload = subTab === "saved" ? { id, remove_filenames: markedList } : { id, add_filenames: markedList }
+        const result = await updatePages(payload)
+        if (!result?.error) { setSaveSuccess(true); setMarked({}); setTimeout(() => setSaveSuccess(false), 2000); loadProjectPages(id) }
+    }
+
+    const handleDownload = async () => { setDownloadingId(id); await downloadMetadata(project); setDownloadingId(null) }
+    const selectAll = () => { const next = {}; activeImages.forEach(img => { next[img.filename] = true }); setMarked(next) }
+
+    return (
+        <div className="flex flex-col h-full">
+            {/* Sub-tab bar */}
+            <div className="flex items-center gap-3 px-6 py-3.5 border-b border-border/50 shrink-0 bg-background">
+                <div className="flex items-center gap-1 bg-muted/60 rounded-xl p-1">
+                    {[
+                        { key: "saved", icon: Images, label: "Saved Pages", count: savedImages.length, countColor: "text-violet-500 bg-violet-500/10" },
+                        { key: "add", icon: Plus, label: "Add Pages", count: allData ? addableImages.length : null, countColor: "text-emerald-500 bg-emerald-500/10" },
+                    ].map(({ key, icon: Icon, label, count, countColor }) => (
+                        <button key={key} onClick={() => setSubTab(key)}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+                                ${subTab === key
+                                    ? "bg-background text-foreground shadow-sm border border-border/40"
+                                    : "text-muted-foreground hover:text-foreground"
+                                }`}>
+                            <Icon className="h-3.5 w-3.5" />
+                            {label}
+                            {count !== null && (
+                                <span className={`text-xs rounded-full px-1.5 py-0.5 font-bold ${countColor}`}>{count}</span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                    <Button size="sm" variant="ghost" className="h-8 text-xs gap-1 text-muted-foreground" onClick={selectAll}>
+                        <CheckSquare className="h-3.5 w-3.5" /> Select All
+                    </Button>
+                    {hasMarked && (
+                        <>
+                            <Button size="sm" variant="ghost" className="h-8 text-xs gap-1 text-muted-foreground" onClick={() => setMarked({})}>
+                                <Square className="h-3.5 w-3.5" /> Deselect
+                            </Button>
+                            <span className="text-xs text-muted-foreground px-1">{markedList.length} selected</span>
+                        </>
+                    )}
+                    <div className="w-px h-5 bg-border/60 mx-1" />
+                    {subTab === "saved" ? (
+                        <Button size="sm" disabled={!hasMarked || pagesUpdating} onClick={handleSave}
+                            className="h-8 text-xs gap-1.5 bg-red-500 hover:bg-red-600 text-white border-0 shadow-sm">
+                            {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            Remove
+                        </Button>
+                    ) : (
+                        <Button size="sm" disabled={!hasMarked || pagesUpdating} onClick={handleSave}
+                            className="h-8 text-xs gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-0 shadow-sm">
+                            {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                            Add Selected
+                        </Button>
+                    )}
+                    {saveSuccess && <span className="text-xs text-emerald-500 font-semibold ml-1 animate-pulse">✓ Saved!</span>}
+                    <Button size="sm" variant="outline"
+                        className="h-8 text-xs gap-1.5 border-violet-500/25 text-violet-500 hover:bg-violet-500/10 ml-1"
+                        disabled={!project.metadata_path || downloadingId === id} onClick={handleDownload}>
+                        {downloadingId === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                        Download JSON
+                    </Button>
+                </div>
+            </div>
+
+            {/* Image grid */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+                {activeLoading ? (
+                    <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="text-sm">Loading pages…</span>
+                    </div>
+                ) : activeImages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-2xl py-20 text-center">
+                        <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                            {subTab === "saved" ? <Images className="h-8 w-8 text-muted-foreground/30" /> : <RefreshCw className="h-8 w-8 text-muted-foreground/30" />}
+                        </div>
+                        <p className="text-sm font-semibold mb-1">{subTab === "saved" ? "No pages saved yet" : "No additional pages available"}</p>
+                        <p className="text-xs text-muted-foreground max-w-xs mt-1">
+                            {subTab === "saved" ? "Once images are saved with this project, they'll appear here." : "All available pages are already in the project, or the job data isn't available."}
+                        </p>
+                    </div>
+                ) : (
+                    pages.map(page => (
+                        <PageGroup key={page} page={page} images={activeGrouped[page]}
+                            mode={subTab === "saved" ? "remove" : "add"} checked={marked} onToggle={toggleMark} />
+                    ))
+                )}
+            </div>
+
+            <div className="shrink-0 px-6 py-2.5 border-t border-border/40 bg-muted/10 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                    {subTab === "saved" ? `${savedImages.length} page${savedImages.length !== 1 ? "s" : ""} saved` : `${addableImages.length} available to add`}
+                </p>
+                <p className="text-xs text-muted-foreground/40">Changes saved to project JSON</p>
+            </div>
+        </div>
+    )
+}
+
+/* ── Summary Tab ────────────────────────────────────────────────────────── */
+function SummaryTab({ project }) {
+    const { projectPages, pagesLoading, loadProjectPages } = useProjects()
+    const id = project.id
+    const savedData = projectPages[id]
+    const savedImages = savedData?.images ?? []
+    useEffect(() => { loadProjectPages(id) }, [id, loadProjectPages])
+
+    const byPage = useMemo(() => {
+        const acc = {}
+        for (const img of savedImages) {
+            const p = img.page_number ?? img.page_num ?? "Unknown"
+            if (!acc[p]) acc[p] = []
+            acc[p].push(img)
+        }
+        return acc
+    }, [savedImages])
+
+    const pageEntries = Object.entries(byPage).sort(([a], [b]) => Number(a) - Number(b))
+    const formatDate = (iso) => {
+        if (!iso) return "—"
+        return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    }
+
+    return (
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="max-w-3xl space-y-5">
+                <div className="grid grid-cols-3 gap-4">
+                    {[
+                        { label: "Total Images", value: savedImages.length, icon: Images, from: "from-violet-500/10", iconCls: "text-violet-400" },
+                        { label: "Pages Used", value: pageEntries.length, icon: Layers, from: "from-indigo-500/10", iconCls: "text-indigo-400" },
+                        { label: "Created", value: formatDate(project.created_at), icon: CalendarDays, from: "from-emerald-500/10", iconCls: "text-emerald-400", small: true },
+                    ].map(({ label, value, icon: Icon, from, iconCls, small }) => (
+                        <div key={label} className="rounded-2xl border border-border bg-card p-5 flex items-center gap-4">
+                            <div className={`h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br ${from} to-transparent flex items-center justify-center`}>
+                                <Icon className={`h-5 w-5 ${iconCls}`} />
+                            </div>
+                            <div>
+                                <p className="text-xs text-muted-foreground font-medium">{label}</p>
+                                <p className={`font-bold leading-tight mt-0.5 ${small ? "text-base" : "text-2xl"}`}>{value}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                {project.pdf_name && (
+                    <div className="rounded-2xl border border-border bg-card p-5 flex items-center gap-4">
+                        <div className="h-11 w-11 shrink-0 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                            <FileJson className="h-5 w-5 text-amber-400" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground font-medium">Source PDF</p>
+                            <p className="text-sm font-semibold mt-0.5">{project.pdf_name}</p>
+                        </div>
+                    </div>
+                )}
+                <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-border/60 flex items-center gap-2.5">
+                        <TrendingUp className="h-4 w-4 text-violet-400" />
+                        <span className="font-semibold text-sm">Pages Breakdown</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{pageEntries.length} pages</span>
+                    </div>
+                    {pagesLoading ? (
+                        <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">Loading…</span>
+                        </div>
+                    ) : pageEntries.length === 0 ? (
+                        <div className="flex flex-col items-center py-12 text-center px-4">
+                            <Package className="h-9 w-9 text-muted-foreground/25 mb-3" />
+                            <p className="text-sm font-medium text-muted-foreground">No pages saved yet</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1">Switch to the Editor tab to add pages.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-border/40">
+                            {pageEntries.map(([page, imgs], idx) => (
+                                <div key={page} className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20 transition-colors">
+                                    <span className="text-xs text-muted-foreground/40 w-5 text-right shrink-0">{idx + 1}</span>
+                                    <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-violet-500/15 to-indigo-500/15 border border-violet-500/15 flex items-center justify-center">
+                                        <span className="text-xs font-bold text-violet-400">{page}</span>
+                                    </div>
+                                    <span className="text-sm font-medium flex-1">Page {page}</span>
+                                    <span className="text-xs bg-muted text-muted-foreground rounded-full px-2.5 py-1 font-semibold">
+                                        {imgs.length} image{imgs.length !== 1 ? "s" : ""}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/* ── Inline project name editor ─────────────────────────────────────────── */
+function ProjectNameEditor({ project, onRename }) {
+    const [editing, setEditing] = useState(false)
+    const [value, setValue] = useState(project?.name ?? "")
+    const [saving, setSaving] = useState(false)
+    const inputRef = useRef(null)
+
+    useEffect(() => {
+        setValue(project?.name ?? "")
+    }, [project?.name])
+
+    const startEdit = () => {
+        setEditing(true)
+        setTimeout(() => inputRef.current?.select(), 50)
+    }
+
+    const cancel = () => {
+        setEditing(false)
+        setValue(project?.name ?? "")
+    }
+
+    const save = async () => {
+        const trimmed = value.trim()
+        if (!trimmed || trimmed === project?.name) { cancel(); return }
+        setSaving(true)
+        await onRename(project.id, trimmed)
+        setSaving(false)
+        setEditing(false)
+    }
+
+    const onKey = (e) => {
+        if (e.key === "Enter") save()
+        if (e.key === "Escape") cancel()
+    }
+
+    if (!editing) {
+        return (
+            <div className="flex items-start gap-2 group/name min-w-0">
+                <p className="text-sidebar-foreground text-xs font-semibold leading-snug truncate flex-1" title={project?.name}>
+                    {project?.name ?? "Loading…"}
+                </p>
+                {project && (
+                    <button
+                        onClick={startEdit}
+                        title="Rename project"
+                        className="shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity h-5 w-5 rounded-md hover:bg-white/10 flex items-center justify-center mt-0.5"
+                    >
+                        <Pencil className="h-3 w-3 text-sidebar-foreground/50" />
+                    </button>
+                )}
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex items-center gap-1.5 w-full">
+            <input
+                ref={inputRef}
+                value={value}
+                onChange={e => setValue(e.target.value)}
+                onKeyDown={onKey}
+                disabled={saving}
+                className="flex-1 min-w-0 text-xs font-semibold bg-white/10 border border-violet-400/40 rounded-md px-2 py-1 text-sidebar-foreground placeholder:text-white/30 focus:outline-none focus:border-violet-400/80"
+                placeholder="Project name"
+                autoFocus
+            />
+            <button onClick={save} disabled={saving}
+                className="h-6 w-6 shrink-0 rounded-md bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 flex items-center justify-center transition-colors">
+                {saving ? <Loader2 className="h-3 w-3 text-violet-300 animate-spin" /> : <Check className="h-3 w-3 text-violet-300" />}
+            </button>
+            <button onClick={cancel}
+                className="h-6 w-6 shrink-0 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors">
+                <X className="h-3 w-3 text-sidebar-foreground/50" />
+            </button>
+        </div>
+    )
+}
+
+/* ── Main Project Editor Page ───────────────────────────────────────────── */
+export function ProjectEditorPage() {
+    const { id } = useParams()
+    const navigate = useNavigate()
+    const { projects, load, rename } = useProjects()
+    const [activeTab, setActiveTab] = useState("editor")
+
+    useEffect(() => { load() }, [load])
+
+    const project = projects.find(p => String(p.id) === String(id))
+
+    const TABS = [
+        { key: "editor", label: "Editor", icon: PenSquare, desc: "Manage floor plan images" },
+        { key: "budget", label: "Budget", icon: Receipt, desc: "View & edit budget items" },
+        { key: "summary", label: "Summary", icon: BarChart3, desc: "Project overview & stats" },
+    ]
+
+    return (
+        <div className="fixed inset-0 flex bg-background overflow-hidden">
+
+            {/* ── Project sidebar — uses app's sidebar theme ── */}
+            <aside className="w-60 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border">
+
+                {/* Back + project identity */}
+                <div className="px-4 pt-5 pb-4 border-b border-sidebar-border">
+                    <button
+                        onClick={() => navigate("/projects")}
+                        className="flex items-center gap-1.5 text-sidebar-foreground/40 hover:text-sidebar-foreground/70 text-xs mb-4 transition-colors group"
+                    >
+                        <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                        All Projects
+                    </button>
+                    <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-violet-500/25 to-indigo-600/25 border border-violet-500/25 flex items-center justify-center shadow-sm">
+                            <FolderOpen className="h-4 w-4 text-violet-300" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <ProjectNameEditor project={project} onRename={rename} />
+                            {project?.pdf_name && (
+                                <p className="text-sidebar-foreground/30 text-[10px] truncate mt-1" title={project.pdf_name}>
+                                    {project.pdf_name}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Tab navigation */}
+                <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/25 px-2 pt-1 pb-2">
+                        Project Tools
+                    </p>
+                    {TABS.map(({ key, label, icon: Icon, desc }) => {
+                        const isActive = activeTab === key
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => setActiveTab(key)}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 relative group
+                                    ${isActive
+                                        ? "bg-sidebar-accent text-sidebar-foreground shadow-sm"
+                                        : "text-sidebar-foreground/45 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/80"
+                                    }`}
+                            >
+                                {isActive && (
+                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-gradient-to-b from-violet-400 to-indigo-500" />
+                                )}
+                                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center transition-all duration-200
+                                    ${isActive
+                                        ? "bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20"
+                                        : "bg-sidebar-foreground/[0.04] border border-sidebar-foreground/[0.07] group-hover:bg-sidebar-foreground/[0.08]"
+                                    }`}>
+                                    <Icon className={`h-4 w-4 transition-colors ${isActive ? "text-violet-400" : "text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60"}`} />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold leading-none">{label}</p>
+                                    <p className="text-[10px] text-sidebar-foreground/25 mt-1 leading-none">{desc}</p>
+                                </div>
+                            </button>
+                        )
+                    })}
+                </nav>
+
+                {/* Bottom stat */}
+                {project && (
+                    <div className="px-3 py-3 border-t border-sidebar-border">
+                        <div className="rounded-xl bg-sidebar-accent border border-sidebar-border px-3 py-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Images className="h-3.5 w-3.5 text-violet-400/70" />
+                                <span className="text-[11px] text-sidebar-foreground/40 font-medium">Images</span>
+                            </div>
+                            <span className="text-sm font-bold text-sidebar-foreground/75">{project.image_count}</span>
+                        </div>
+                    </div>
+                )}
+            </aside>
+
+            {/* ── Main content ── */}
+            <div className="flex-1 flex flex-col overflow-hidden bg-background">
+                {/* Top header */}
+                <div className="h-14 shrink-0 border-b border-border/50 px-6 flex items-center gap-3 bg-background">
+                    {TABS.map(({ key, label, icon: Icon }) =>
+                        activeTab === key ? (
+                            <div key={key} className="flex items-center gap-2.5">
+                                <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                                    <Icon className="h-4 w-4 text-violet-400" />
+                                </div>
+                                <span className="font-semibold text-sm">{label}</span>
+                                {project && <span className="text-xs text-muted-foreground/50 font-normal">— {project.name}</span>}
+                            </div>
+                        ) : null
+                    )}
+                </div>
+
+                {/* Tab content */}
+                <div className="flex-1 overflow-hidden flex flex-col">
+                    {!project ? (
+                        <div className="flex items-center justify-center flex-1 gap-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span className="text-sm">Loading project…</span>
+                        </div>
+                    ) : activeTab === "editor" ? (
+                        <EditorTab project={project} />
+                    ) : activeTab === "budget" ? (
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <BudgetTable />
+                        </div>
+                    ) : (
+                        <SummaryTab project={project} />
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}

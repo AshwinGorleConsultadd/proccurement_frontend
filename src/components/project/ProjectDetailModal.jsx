@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react"
-import { useProjects } from "../redux/hooks/project/useProjects"
-import { Button } from "./ui/button"
+import { useProjects } from "../../redux/hooks/project/useProjects"
+import { Button } from "../ui/button"
 import {
     X,
     Loader2,

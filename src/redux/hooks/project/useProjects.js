@@ -8,6 +8,7 @@ import {
     fetchProjectPages,
     fetchAvailablePages,
     updateProjectPages,
+    renameProject,
 } from '../../actions/project/projectActions'
 import { clearProjectPages } from '../../slices/projectSlice'
 
@@ -83,6 +84,11 @@ export function useProjects() {
         [dispatch]
     )
 
+    const rename = useCallback(
+        (id, name) => dispatch(renameProject({ id, name })),
+        [dispatch]
+    )
+
     return {
         projects,
         loading,
@@ -95,6 +101,7 @@ export function useProjects() {
         load,
         create,
         remove,
+        rename,
         downloadMetadata,
         loadProjectPages,
         loadAvailablePages,

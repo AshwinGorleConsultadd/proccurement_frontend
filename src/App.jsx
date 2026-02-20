@@ -1,19 +1,24 @@
 
 import { BrowserRouter, Routes, Route } from "react-router-dom"
-import { MainLayout } from "./components/MainLayout"
-import { DashboardPage } from "./pages/DashboardPage"
-import { BudgetPage } from "./pages/BudgetPage"
-import { ProcurementPage } from "./pages/ProcurementPage"
-import { VendorsPage } from "./pages/VendorsPage"
-import { SettingsPage } from "./pages/SettingsPage"
-import { FloorPlanPage } from "./pages/FloorPlanPage"
-import { ProjectsPage } from "./pages/ProjectsPage"
-import "./App.css"
+
+// Layout
+import { MainLayout } from "./components/layout/MainLayout"
+
+// Pages — organised by domain
+import { DashboardPage } from "./pages/dashboard/DashboardPage"
+import { BudgetPage } from "./pages/budget/BudgetPage"
+import { ProcurementPage } from "./pages/procurement/ProcurementPage"
+import { VendorsPage } from "./pages/vendors/VendorsPage"
+import { SettingsPage } from "./pages/settings/SettingsPage"
+import { FloorPlanPage } from "./pages/floorplan/FloorPlanPage"
+import { ProjectsPage } from "./pages/project/ProjectsPage"
+import { ProjectEditorPage } from "./pages/project/ProjectEditorPage"
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* All main pages share the AppSidebar via MainLayout */}
         <Route path="/" element={<MainLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="budget" element={<BudgetPage />} />
@@ -23,6 +28,9 @@ function App() {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
+
+        {/* Project editor — full screen, own sidebar only */}
+        <Route path="/projects/:id" element={<ProjectEditorPage />} />
       </Routes>
     </BrowserRouter>
   )

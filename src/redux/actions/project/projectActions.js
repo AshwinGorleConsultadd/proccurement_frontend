@@ -99,3 +99,16 @@ export const updateProjectPages = createAsyncThunk(
         }
     }
 )
+
+export const renameProject = createAsyncThunk(
+    'projects/renameProject',
+    async ({ id, name }, { rejectWithValue }) => {
+        try {
+            const res = await api.patch(`/projects/${id}`, { name })
+            return res.data
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.detail || err.message)
+        }
+    }
+)
+

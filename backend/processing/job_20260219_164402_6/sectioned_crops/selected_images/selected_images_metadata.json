@@ -1,17 +1,8 @@
 {
   "total_selected": 55,
-  "timestamp": "2026-02-19T18:58:26.841700",
+  "timestamp": "2026-02-20T20:05:26.133588",
   "dpi": 300,
   "images": [
-    {
-      "filename": "crop1.png",
-      "page_number": 1,
-      "label": "full",
-      "sub_index": 0,
-      "original_path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_164402_6/sectioned_crops/crop1.png",
-      "saved_path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_164402_6/sectioned_crops/selected_images/crop1.png",
-      "url": "/processing/job_20260219_164402_6/sectioned_crops/selected_images/crop1.png"
-    },
     {
       "filename": "crop2.png",
       "page_number": 2,
@@ -497,6 +488,15 @@
       "original_path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_164402_6/sectioned_crops/crop26.d.png",
       "saved_path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_164402_6/sectioned_crops/selected_images/crop26.d.png",
       "url": "/processing/job_20260219_164402_6/sectioned_crops/selected_images/crop26.d.png"
+    },
+    {
+      "filename": "crop1.png",
+      "page_number": 1,
+      "label": "full",
+      "sub_index": 0,
+      "original_path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_164402_6/sectioned_crops/crop1.png",
+      "saved_path": "/Users/consultadd/Desktop/proccurement_frontend/backend/processing/job_20260219_164402_6/sectioned_crops/selected_images/crop1.png",
+      "url": "/processing/job_20260219_164402_6/sectioned_crops/selected_images/crop1.png"
     }
   ]
 }

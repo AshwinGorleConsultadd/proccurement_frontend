@@ -1,4 +1,4 @@
-import { ProjectsSection } from "../components/ProjectsSection"
+import { ProjectsSection } from "../../components/project/ProjectsSection"
 
 export function ProjectsPage() {
     return (

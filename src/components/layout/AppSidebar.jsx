@@ -1,7 +1,6 @@
 
 import {
     LayoutDashboard,
-    Receipt,
     ShoppingCart,
     Users,
     Settings,
@@ -11,20 +10,19 @@ import {
     FolderOpen,
 } from "lucide-react"
 import { useLocation, Link } from "react-router-dom"
-import { cn } from "../lib/utils"
-import { useUI } from "../redux/hooks/ui/useUI"
-import { useIsMobile } from "../hooks/use-mobile"
+import { cn } from "../../lib/utils"
+import { useUI } from "../../redux/hooks/ui/useUI"
+import { useIsMobile } from "../../hooks/use-mobile"
 import { useEffect, useRef } from "react"
 import {
     Tooltip,
     TooltipContent,
     TooltipTrigger,
     TooltipProvider,
-} from "./ui/tooltip"
+} from "../ui/tooltip"
 
 const NAV_ITEMS = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Budget", url: "/budget", icon: Receipt },
     { title: "Procurement", url: "/procurement", icon: ShoppingCart },
     { title: "Floor Plans", url: "/floor-plans", icon: FileText },
     { title: "Projects", url: "/projects", icon: FolderOpen },

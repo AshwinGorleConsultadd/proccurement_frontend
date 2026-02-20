@@ -1,5 +1,5 @@
 
-import { Button } from "./ui/button"
+import { Button } from "../ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export function PaginationControls({ page, pageSize, total, onPageChange }) {

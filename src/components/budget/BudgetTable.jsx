@@ -8,16 +8,16 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "./ui/table"
-import { Button } from "./ui/button"
-import { Switch } from "./ui/switch"
-import { Badge } from "./ui/badge"
+} from "../ui/table"
+import { Button } from "../ui/button"
+import { Switch } from "../ui/switch"
+import { Badge } from "../ui/badge"
 import { Loader2 } from "lucide-react"
 
-import { useGetBudgetItems } from "../redux/hooks/budget/useGetBudgetItems"
-import { useCreateBudgetItem } from "../redux/hooks/budget/useCreateBudgetItem"
-import { useUpdateBudgetItem } from "../redux/hooks/budget/useUpdateBudgetItem"
-import { useDeleteBudgetItem } from "../redux/hooks/budget/useDeleteBudgetItem"
+import { useGetBudgetItems } from "../../redux/hooks/budget/useGetBudgetItems"
+import { useCreateBudgetItem } from "../../redux/hooks/budget/useCreateBudgetItem"
+import { useUpdateBudgetItem } from "../../redux/hooks/budget/useUpdateBudgetItem"
+import { useDeleteBudgetItem } from "../../redux/hooks/budget/useDeleteBudgetItem"
 import {
     setEditingRowId,
     setSearch,
@@ -25,12 +25,12 @@ import {
     setGroupByPage,
     setGroupByRoom,
     setSection,
-} from "../redux/slices/budgetSlice"
+} from "../../redux/slices/budgetSlice"
 
 import { BudgetRow } from "./BudgetRow"
 import { PaginationControls } from "./PaginationControls"
 import { SearchInput } from "./SearchInput"
-import { formatCurrency } from "../lib/utils"
+import { formatCurrency } from "../../lib/utils"
 
 export function BudgetTable() {
     const dispatch = useDispatch()

@@ -1,16 +1,16 @@
 
 import { useState, useEffect } from "react"
 import { Eye, EyeOff, Plus, Trash2 } from "lucide-react"
-import { Button } from "./ui/button"
+import { Button } from "../ui/button"
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "./ui/dropdown-menu"
+} from "../ui/dropdown-menu"
 import { DeleteRowDialog } from "./DeleteRowDialog"
-import { formatCurrency } from "../lib/utils"
-import { Input } from "./ui/input"
+import { formatCurrency } from "../../lib/utils"
+import { Input } from "../ui/input"
 
 /** Extract leading number from qty strings like "1 Ea.", "2.5 pcs", "3" → returns the number or 1 */
 function parseQtyNumber(qty) {

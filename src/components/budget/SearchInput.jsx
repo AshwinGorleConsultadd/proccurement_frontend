@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react"
-import { Input } from "./ui/input"
+import { Input } from "../ui/input"
 import { Search } from "lucide-react"
 
 export function SearchInput({ value, onChange, placeholder = "Search..." }) {

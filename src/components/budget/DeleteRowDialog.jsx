@@ -8,7 +8,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "./ui/alert-dialog"
+} from "../ui/alert-dialog"
 
 export function DeleteRowDialog({ open, onOpenChange, onConfirm, itemName }) {
     return (

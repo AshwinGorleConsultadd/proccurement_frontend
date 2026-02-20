@@ -1,7 +1,7 @@
 import { useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
-import { useGetBudgetItems } from "../redux/hooks/budget/useGetBudgetItems"
-import { formatCurrency } from "../lib/utils"
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
+import { useGetBudgetItems } from "../../redux/hooks/budget/useGetBudgetItems"
+import { formatCurrency } from "../../lib/utils"
 import { DollarSign, Users, Package } from "lucide-react"
 
 export function DashboardPage() {
