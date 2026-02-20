@@ -983,6 +983,78 @@ def get_project_metadata(project_id: int):
         db.close()
 
 
+# ── Upload external image to project ────────────────────────────────────────
+PROJECT_UPLOADS_DIR = os.path.join(BASE_DIR, "uploads", "project_images")
+os.makedirs(PROJECT_UPLOADS_DIR, exist_ok=True)
+
+@app.post("/projects/{project_id}/upload-image")
+async def upload_image_to_project(
+    project_id: int,
+    file: UploadFile = File(...),
+    page_number: int = Form(1),
+    label: str = Form("UPLOADED"),
+):
+    """Upload an external image file and add it to the project's saved pages."""
+    db = SessionLocal()
+    try:
+        proj = db.query(Project).filter(Project.id == project_id).first()
+        if not proj:
+            raise HTTPException(404, "Project not found")
+
+        # Save file to a per-project subfolder
+        proj_upload_dir = os.path.join(PROJECT_UPLOADS_DIR, f"project_{project_id}")
+        os.makedirs(proj_upload_dir, exist_ok=True)
+
+        # Sanitise filename to avoid collisions
+        original_name = os.path.basename(file.filename or "upload.png")
+        base, ext = os.path.splitext(original_name)
+        unique_name = f"{base}_{int(datetime.now().timestamp()*1000)}{ext or '.png'}"
+        dest_path = os.path.join(proj_upload_dir, unique_name)
+
+        contents = await file.read()
+        with open(dest_path, "wb") as f_out:
+            f_out.write(contents)
+
+        # Relative URL served by /uploads static mount
+        rel_url = f"/uploads/project_images/project_{project_id}/{unique_name}"
+
+        new_entry = {
+            "filename": unique_name,
+            "url": rel_url,
+            "page_number": page_number,
+            "label": label,
+            "source": "uploaded",
+        }
+
+        # Load / create metadata JSON
+        if proj.metadata_path and os.path.exists(proj.metadata_path):
+            with open(proj.metadata_path) as mf:
+                metadata = json.load(mf)
+        else:
+            # Create a fresh metadata file next to the db
+            meta_dir = os.path.join(BASE_DIR, "project_metadata")
+            os.makedirs(meta_dir, exist_ok=True)
+            meta_path = os.path.join(meta_dir, f"project_{project_id}.json")
+            metadata = {"project_id": project_id, "images": []}
+            proj.metadata_path = meta_path
+            db.commit()
+
+        if "images" not in metadata:
+            metadata["images"] = []
+        metadata["images"].append(new_entry)
+
+        with open(proj.metadata_path, "w") as mf:
+            json.dump(metadata, mf, indent=2)
+
+        # Update image count on project row
+        proj.image_count = len(metadata["images"])
+        proj.updated_at = datetime.now().isoformat()
+        db.commit()
+
+        return {"ok": True, "image": new_entry}
+    finally:
+        db.close()
+
 @app.get("/projects/{project_id}/pages")
 def get_project_pages(project_id: int):
     """
