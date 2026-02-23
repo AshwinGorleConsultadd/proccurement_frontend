@@ -36,12 +36,14 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [color, setColor] = useState("#3b82f6");
+  const [type, setType] = useState("FF&E");
   const [error, setError] = useState("");
 
   const reset = () => {
     setName("");
     setCode("");
     setColor("#3b82f6");
+    setType("FF&E");
     setError("");
   };
 
@@ -66,6 +68,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
       name: name.trim(),
       code: code.trim(),
       color: hexToRgb(color),
+      type,
     });
 
     reset();
@@ -117,6 +120,21 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
               }}
               className="rounded-none h-9 text-sm font-mono focus-visible:ring-1 focus-visible:ring-blue-500"
             />
+          </div>
+
+          {/* Type */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Group Type
+            </Label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="flex h-9 w-full border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded-none cursor-pointer"
+            >
+              <option value="FF&E">FF&E</option>
+              <option value="OFCI">OFCI</option>
+            </select>
           </div>
 
           {/* Colour picker */}

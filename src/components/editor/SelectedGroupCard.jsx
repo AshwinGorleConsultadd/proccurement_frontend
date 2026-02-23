@@ -23,6 +23,7 @@ export default function SelectedGroupCard({
   const [editName, setEditName] = useState(group.name);
   const [editCode, setEditCode] = useState(group.code || "");
   const [editColor, setEditColor] = useState(rgbToHex(group.color));
+  const [editType, setEditType] = useState(group.type || "FF&E");
   const [isDirty, setIsDirty] = useState(false);
   const colorInputRef = useRef(null);
 
@@ -31,9 +32,10 @@ export default function SelectedGroupCard({
     setEditName(group.name);
     setEditCode(group.code || "");
     setEditColor(rgbToHex(group.color));
+    setEditType(group.type || "FF&E");
     setIsDirty(false);
     setIsOpen(false); // collapse mask list on group switch
-  }, [group.id]); // keyed on id — fires only when a different group is chosen
+  }, [group.id, group.type]); // keyed on id — fires only when a different group is chosen
 
   // Masks that belong to this group
   const groupMasks = masks.filter((m) => m.group_id === group.id);
@@ -58,6 +60,11 @@ export default function SelectedGroupCard({
     setIsDirty(true);
   };
 
+  const handleTypeChange = (e) => {
+    setEditType(e.target.value);
+    setIsDirty(true);
+  };
+
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = () => {
     if (!editName.trim()) return;
@@ -66,6 +73,7 @@ export default function SelectedGroupCard({
       name: editName.trim(),
       code: editCode.trim(),
       color: hexToRgb(editColor),
+      type: editType,
     });
     setIsDirty(false);
   };
@@ -75,6 +83,7 @@ export default function SelectedGroupCard({
     setEditName(group.name);
     setEditCode(group.code || "");
     setEditColor(rgbToHex(group.color));
+    setEditType(group.type || "FF&E");
     setIsDirty(false);
   };
 
@@ -135,6 +144,21 @@ export default function SelectedGroupCard({
             placeholder="Group code"
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
           />
+        </div>
+
+        {/* Type */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Type
+          </label>
+          <select
+            value={editType}
+            onChange={handleTypeChange}
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
+          >
+            <option value="FF&E">FF&E</option>
+            <option value="OFCI">OFCI</option>
+          </select>
         </div>
 
         {/* Colour preview row */}
@@ -246,6 +270,11 @@ export default function SelectedGroupCard({
                       )}
                     />
                     <span className="font-mono truncate">Mask #{mask.id}</span>
+                    {mask.source === "user" && (
+                      <span className="px-1 py-0.5 bg-blue-100 text-blue-700 text-[8px] font-bold rounded uppercase tracking-wider ml-1">
+                        User Drawn
+                      </span>
+                    )}
                     {isSelected && (
                       <span className="ml-auto text-[9px] text-red-400 font-semibold uppercase tracking-wide">
                         selected

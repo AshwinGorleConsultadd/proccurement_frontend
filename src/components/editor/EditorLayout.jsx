@@ -6,10 +6,20 @@ import ContextMenu from "./ContextMenu";
 import GroupDialog from "./GroupDialog";
 import CreateGroupDialog from "./CreateGroupDialog";
 import GroupAssignPopover from "./GroupAssignPopover";
+import AssignDrawnMaskDialog from "./AssignDrawnMaskDialog";
 
 export default function EditorLayout() {
   // ─── Core state ────────────────────────────────────────────────────────────
-  const [groups, setGroups] = useState(editorData.groups);
+  const [groups, setGroups] = useState(() => {
+    const initializedGroups = {};
+    for (const [key, group] of Object.entries(editorData.groups)) {
+      initializedGroups[key] = {
+        ...group,
+        type: group.type || "FF&E",
+      };
+    }
+    return initializedGroups;
+  });
   const [masks, setMasks] = useState(editorData.masks);
   const [selectedMaskIds, setSelectedMaskIds] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
@@ -25,6 +35,10 @@ export default function EditorLayout() {
   const [changeGroupMode, setChangeGroupMode] = useState(false);
   /** Position + data for the floating group-assign popover; null = hidden */
   const [assignPopover, setAssignPopover] = useState(null); // { x, y }
+
+  // ─── Drawing mode state ────────────────────────────────────────────────────
+  const [isDrawMode, setIsDrawMode] = useState(false);
+  const [pendingMaskPolygons, setPendingMaskPolygons] = useState(null);
 
   // ─── Undo / Redo ──────────────────────────────────────────────────────────
   const [history, setHistory] = useState([
@@ -127,6 +141,26 @@ export default function EditorLayout() {
   };
 
   // ─── Other handlers ───────────────────────────────────────────────────────
+  const handleSaveNewMask = (polygons) => {
+    setPendingMaskPolygons(polygons); // Pause to assign group
+  };
+
+  const handleAssignDrawnMask = (groupId) => {
+    if (!pendingMaskPolygons) return;
+    const newMask = {
+      id: `mask_${Date.now()}`,
+      group_id: groupId,
+      polygons: pendingMaskPolygons,
+      source: "user",
+    };
+    const newMasks = [...masks, newMask];
+    setMasks(newMasks);
+    setSelectedGroupId(groupId); // auto-select the group we just assigned to
+    pushToHistory(newMasks, groups);
+    setPendingMaskPolygons(null);
+    setIsDrawMode(false);
+  };
+
   /** Legacy right-click → GroupDialog path (kept for backward compat) */
   const assignGroup = (groupId) => {
     const newMasks = masks.map((mask) =>
@@ -205,7 +239,7 @@ export default function EditorLayout() {
       />
 
       <div
-        className="flex-1 overflow-hidden"
+        className="flex-1 overflow-hidden relative"
         style={{
           backgroundColor: "#f0f0f0",
           backgroundImage:
@@ -213,6 +247,50 @@ export default function EditorLayout() {
           backgroundSize: "24px 24px",
         }}
       >
+        {/* Floating Toolbar */}
+        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
+          <button
+            onClick={() => setIsDrawMode(!isDrawMode)}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded shadow-sm border pointer-events-auto transition-colors ${
+              isDrawMode
+                ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            {isDrawMode ? "Cancel Drawing" : "Draw Mask"}
+          </button>
+
+          {isDrawMode && (
+            <div className="text-xs text-gray-600 bg-white/95 p-2.5 rounded shadow-sm border border-gray-200 pointer-events-auto">
+              <p className="font-medium text-gray-800 mb-1">Drawing Actions:</p>
+              <ul className="list-disc leading-snug space-y-0.5 ml-4">
+                <li>
+                  <strong>Click</strong> to place points.
+                </li>
+                <li>
+                  Press <strong>Enter</strong> to finish mask.
+                </li>
+                <li>
+                  Press <strong>Esc</strong> to cancel.
+                </li>
+              </ul>
+            </div>
+          )}
+        </div>
+
         <CanvasEditor
           groups={groups}
           masks={masks}
@@ -225,6 +303,8 @@ export default function EditorLayout() {
           setSelectedGroupId={setSelectedGroupId}
           setContextMenu={setContextMenu}
           onCtrlClickMask={handleCtrlClickMask}
+          isDrawMode={isDrawMode}
+          onSaveNewMask={handleSaveNewMask}
         />
       </div>
 
@@ -268,6 +348,15 @@ export default function EditorLayout() {
         onClose={() => setCreateGroupDialogOpen(false)}
         onGroupCreated={handleGroupCreated}
       />
+
+      {pendingMaskPolygons && (
+        <AssignDrawnMaskDialog
+          open={!!pendingMaskPolygons}
+          onClose={() => setPendingMaskPolygons(null)}
+          onAssign={handleAssignDrawnMask}
+          groups={groups}
+        />
+      )}
     </div>
   );
 }

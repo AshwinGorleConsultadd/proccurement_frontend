@@ -1,5 +1,12 @@
-import { Stage, Layer, Line, Image as KonvaImage, Rect } from "react-konva";
-import { useState, useRef } from "react";
+import {
+  Stage,
+  Layer,
+  Line,
+  Image as KonvaImage,
+  Rect,
+  Circle,
+} from "react-konva";
+import { useState, useRef, useEffect } from "react";
 import useImage from "use-image";
 import floorImage from "../../data/floorplan.png";
 
@@ -15,6 +22,8 @@ export default function CanvasEditor({
   toggleMaskSelection, // (id, isShift) => void
   setContextMenu,
   onCtrlClickMask, // (maskId, { x, y }) => void — Ctrl+Click in reassign mode
+  isDrawMode,
+  onSaveNewMask, // (polygonArray) => void
 }) {
   const [image] = useImage(floorImage);
   const stageRef = useRef(null);
@@ -26,6 +35,39 @@ export default function CanvasEditor({
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
   const selectionStartRef = useRef(null);
+
+  // ── Drawing state ────────────────────────────────────────────────────────
+  const [currentPolygon, setCurrentPolygon] = useState([]);
+  const [mousePos, setMousePos] = useState(null);
+
+  useEffect(() => {
+    if (!isDrawMode) {
+      setCurrentPolygon([]);
+      setMousePos(null);
+    }
+  }, [isDrawMode]);
+
+  useEffect(() => {
+    if (!isDrawMode) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Enter") {
+        if (currentPolygon.length >= 6) {
+          onSaveNewMask([currentPolygon]);
+        }
+        setCurrentPolygon([]);
+        setMousePos(null);
+      } else if (e.key === "Escape") {
+        setCurrentPolygon([]);
+        setMousePos(null);
+      } else if (e.key === "Backspace" || e.key === "Delete") {
+        setCurrentPolygon((prev) =>
+          prev.length >= 2 ? prev.slice(0, -2) : prev,
+        );
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDrawMode, currentPolygon, onSaveNewMask]);
 
   // ── Zoom ──────────────────────────────────────────────────────────────────
   const handleWheel = (e) => {
@@ -66,10 +108,15 @@ export default function CanvasEditor({
   };
 
   const handleMouseMove = (e) => {
-    if (!isSelecting) return;
-    e.evt.preventDefault();
     const stage = e.target.getStage();
     const pos = stage.getRelativePointerPosition();
+
+    if (isDrawMode && currentPolygon.length > 0) {
+      setMousePos([pos.x, pos.y]);
+    }
+
+    if (!isSelecting) return;
+    e.evt.preventDefault();
     const start = selectionStartRef.current;
     setSelectionBox({
       x: Math.min(start.x, pos.x),
@@ -189,7 +236,7 @@ export default function CanvasEditor({
       scaleY={scale}
       x={position.x}
       y={position.y}
-      draggable={!isSelecting}
+      draggable={!isSelecting && !isDrawMode}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -197,11 +244,17 @@ export default function CanvasEditor({
         if (isSelecting) e.target.stopDrag();
       }}
       onDragMove={(e) => {
-        if (!isSelecting) setPosition({ x: e.target.x(), y: e.target.y() });
+        if (!isSelecting && !isDrawMode)
+          setPosition({ x: e.target.x(), y: e.target.y() });
       }}
       onWheel={handleWheel}
-      // Background click → deselect all (in reassign mode)
+      // Background click → deselect all (in reassign mode), or add drawing point
       onClick={(e) => {
+        if (isDrawMode) {
+          const pos = e.target.getStage().getRelativePointerPosition();
+          setCurrentPolygon((prev) => [...prev, pos.x, pos.y]);
+          return;
+        }
         if (e.target === e.target.getStage() && changeGroupMode) {
           setSelectedMaskIds?.([]);
         }
@@ -237,6 +290,7 @@ export default function CanvasEditor({
               stroke={strokeColor}
               strokeWidth={strokeWidth}
               onClick={(e) => handleMaskClick(e, mask)}
+              listening={!isDrawMode}
             />
           ));
         })}
@@ -255,6 +309,45 @@ export default function CanvasEditor({
           />
         )}
       </Layer>
+
+      {/* Drawing Layer */}
+      {isDrawMode && (
+        <Layer>
+          <Line
+            points={currentPolygon}
+            stroke="#10b981"
+            strokeWidth={3 / scale}
+            closed={false}
+            lineCap="round"
+            lineJoin="round"
+          />
+          {currentPolygon.length > 0 && mousePos && (
+            <Line
+              points={[
+                currentPolygon[currentPolygon.length - 2],
+                currentPolygon[currentPolygon.length - 1],
+                mousePos[0],
+                mousePos[1],
+              ]}
+              stroke="#10b981"
+              strokeWidth={3 / scale}
+              dash={[5 / scale, 5 / scale]}
+            />
+          )}
+          {currentPolygon.map((p, i) => {
+            if (i % 2 !== 0) return null;
+            return (
+              <Circle
+                key={i}
+                x={currentPolygon[i]}
+                y={currentPolygon[i + 1]}
+                radius={4 / scale}
+                fill="#10b981"
+              />
+            );
+          })}
+        </Layer>
+      )}
     </Stage>
   );
 }
