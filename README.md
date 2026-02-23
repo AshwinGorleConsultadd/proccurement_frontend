@@ -1,16 +1,56 @@
-# React + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# Procurement and Co.
 
-Currently, two official plugins are available:
+Full-stack Budget Management & PDF Floor Plan Processor Application.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
+- **Frontend**: React 19, Vite, Tailwind CSS v4, Redux Toolkit
+- **Backend**: FastAPI, SQLAlchemy, SQLite, PyMuPDF, OpenCV, DocLayout-YOLO
 
-## React Compiler
+## Prerequisites
+- Node.js & npm
+- Python 3.9+
+- [DocLayout-YOLO model weights](https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench/resolve/main/doclayout_yolo_docstructbench_imgsz1024.pt) (place in `backend/` or root)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Setup
 
-## Expanding the ESLint configuration
+1. **Backend**:
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   # Download the model weights if you want to use the PDF processor features
+   # wget https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench/resolve/main/doclayout_yolo_docstructbench_imgsz1024.pt
+   ```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+2. **Frontend**:
+   ```bash
+   npm install
+   ```
+
+## Running the App
+
+1. **Start Backend** (Terminal 1):
+   ```bash
+   cd backend
+   uvicorn main:app --reload --port 8000
+   ```
+
+2. **Start Frontend** (Terminal 2):
+   ```bash
+   npm run dev
+   ```
+
+3. **Open Browser**:
+   Navigate to [http://localhost:5173](http://localhost:5173)
+
+## Features
+- **Budget**: Full CRUD with grouping, search, and inline editing.
+- **Floor Plans**: Upload PDFs, extract diagrams using AI/CV pipeline, select and export.
+- **Dashboard**: Overview statistics.
+
+## Project Structure
+- `backend/`: FastAPI app, database models, and processing scripts.
+- `src/`: React frontend code.
+  - `components/`: UI and feature components.
+  - `pages/`: Application pages.
+  - `redux/`: State management (slices, actions, hooks).

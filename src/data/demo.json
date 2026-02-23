@@ -1,0 +1,81 @@
+{
+  "image_width": 2638,
+  "image_height": 2389,
+  "groups": {
+    "group_2": {
+      "id": "group_2",
+      "name": "Object_XOV",
+      "code": "",
+      "color": [136, 129, 181],
+      "mask_indices": [1]
+    },
+    "group_3": {
+      "id": "group_3",
+      "name": "Object_GLL",
+      "code": "",
+      "color": [177, 224, 113],
+      "mask_indices": [2, 60, 59, 25, 17]
+    }
+  },
+  "masks": [
+    {
+      "id": 0,
+      "polygons": [
+        [
+          [1026, 1106],
+          [1026, 1104],
+          [1025, 1103]
+          // more here (x,y) points 
+        ],
+        [
+          [1046, 2106],
+          [2026, 1804],
+          [9025, 9103]
+          // more here (x,y) points 
+        ]
+      ],
+      "group_id": "group_2"
+    }
+
+    // more similar objects
+  ]
+}
+
+
+
+
+
+
+
+{
+    "group_1": {
+        "id": "group_1",
+        "name": "Object_YZW",
+        "code": "",
+        "color": [
+            184,
+            243,
+            131
+        ],
+        "mask_indices": [
+            0
+        ]
+    },
+    "group_3": {
+        "id": "group_3",
+        "name": "Object_GLL",
+        "code": "",
+        "color": [
+            177,
+            224,
+            113
+        ],
+        "mask_indices": [
+            2,
+            60,
+            59,
+            25,
+            17
+        ]
+    },
+}
