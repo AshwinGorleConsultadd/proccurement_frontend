@@ -168,7 +168,7 @@ export function ProjectDetailModal({ project, onClose }) {
     const [downloadingId, setDownloadingId] = useState(null)
     const [saveSuccess, setSaveSuccess] = useState(false)
 
-    const id = project.id
+    const id = project._id ?? project.id   // MongoDB _id (string) or SQLite id (number)
     const savedData = projectPages[id]
     const allData = availablePages[id]
 

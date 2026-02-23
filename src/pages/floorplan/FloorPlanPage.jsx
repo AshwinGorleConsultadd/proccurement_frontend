@@ -59,26 +59,38 @@ export function FloorPlanPage() {
             projectName.trim() ||
             (pdfName ? pdfName.replace(/\.pdf$/i, "") : `Project ${new Date().toLocaleDateString()}`)
 
-        await createProject({
+        // 3. Reconstruct path to the metadata JSON from the first saved image
+        let metadataPath = null
+        if (metadata?.images?.[0]?.saved_path) {
+            const firstPath = metadata.images[0].saved_path
+            const dir = firstPath.substring(0, firstPath.lastIndexOf("/"))
+            metadataPath = `${dir}/selected_images_metadata.json`
+        }
+
+        // 4. Create project in MongoDB with the correct field names
+        const pdfPath = pdfDoc ? `/uploads/pdfs/${pdfDoc.filename}` : null
+        const projectResult = await createProject({
             name: finalName,
-            pdf_name: pdfName,
-            job_id: currentJob.id,
-            image_count: Object.keys(selectedImages).length,
-            // metadata_path is the absolute path stored by the backend's save-selected endpoint
-            metadata_path: metadata?.images?.[0]?.original_path
-                ? (() => {
-                    // reconstruct: the dir is `job_dir/sectioned_crops/selected_images/`
-                    // the JSON is at `selected_images_metadata.json` in that dir
-                    const firstPath = metadata.images[0].saved_path
-                    const dir = firstPath.substring(0, firstPath.lastIndexOf("/"))
-                    return `${dir}/selected_images_metadata.json`
-                })()
-                : null,
+            description: pdfName ? `Imported from ${pdfName}` : "",
+            source_pdf_path: pdfPath,
         })
+
+        // 5. Sync processing metadata → MongoDB (populates selected_diagram_metadata)
+        const newProjectId = projectResult?.payload?._id
+        if (newProjectId && metadataPath) {
+            try {
+                const { api } = await import('../../redux/api/apiClient')
+                await api.post(`/projects/${newProjectId}/attach-metadata`, {
+                    metadata_path: metadataPath,
+                })
+            } catch (e) {
+                console.warn('[Project] attach-metadata failed:', e)
+            }
+        }
 
         setProjectSaved(true)
 
-        // Refresh the section like a new one after a short delay
+        // Reset form after short delay
         setTimeout(() => {
             reset()
             setProjectSaved(false)

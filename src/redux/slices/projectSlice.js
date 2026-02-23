@@ -1,22 +1,28 @@
 import { createSlice } from '@reduxjs/toolkit'
 import {
     fetchProjects,
+    fetchProject,
     createProject,
     deleteProject,
-    fetchProjectMetadata,
     fetchProjectPages,
     fetchAvailablePages,
     updateProjectPages,
     renameProject,
 } from '../actions/project/projectActions'
 
+// Helper: get the canonical id field (MongoDB uses _id as string)
+const getId = (p) => p._id || p.id
+
 const initialState = {
     projects: [],
     loading: false,
     error: null,
-    // Per-project page data cached by project id
-    projectPages: {},           // { [id]: { images, total_selected } }
-    availablePages: {},         // { [id]: { images, total } }
+    // Single project fetched directly (includes selected_diagram_metadata)
+    currentProject: null,
+    currentProjectLoading: false,
+    // Per-project page data cached by project _id
+    projectPages: {},
+    availablePages: {},
     pagesLoading: false,
     availableLoading: false,
     pagesUpdating: false,
@@ -34,8 +40,36 @@ const projectSlice = createSlice({
             delete state.projectPages[id]
             delete state.availablePages[id]
         },
+        clearCurrentProject(state) {
+            state.currentProject = null
+        },
     },
     extraReducers: (builder) => {
+        // ── Fetch single project ───────────────────────────────────────────
+        builder
+            .addCase(fetchProject.pending, (state) => {
+                state.currentProjectLoading = true
+                state.error = null
+            })
+            .addCase(fetchProject.fulfilled, (state, action) => {
+                state.currentProjectLoading = false
+                state.currentProject = action.payload
+                // Keep projects list in sync
+                const incoming = action.payload
+                const idx = state.projects.findIndex(
+                    (p) => getId(p) === getId(incoming)
+                )
+                if (idx !== -1) {
+                    state.projects[idx] = { ...state.projects[idx], ...incoming }
+                } else {
+                    state.projects.unshift(incoming)
+                }
+            })
+            .addCase(fetchProject.rejected, (state, action) => {
+                state.currentProjectLoading = false
+                state.error = action.payload || 'Failed to fetch project'
+            })
+
         // ── Fetch all ──────────────────────────────────────────────────────
         builder
             .addCase(fetchProjects.pending, (state) => {
@@ -54,19 +88,19 @@ const projectSlice = createSlice({
         // ── Create ─────────────────────────────────────────────────────────
         builder
             .addCase(createProject.fulfilled, (state, action) => {
-                state.projects.unshift(action.payload)  // newest at top
+                state.projects.unshift(action.payload)
             })
 
         // ── Delete ─────────────────────────────────────────────────────────
         builder
             .addCase(deleteProject.fulfilled, (state, action) => {
-                state.projects = state.projects.filter((p) => p.id !== action.payload)
-            })
-
-        // ── Fetch metadata (no-op in state — caller uses returned value) ───
-        builder
-            .addCase(fetchProjectMetadata.rejected, (state, action) => {
-                state.error = action.payload
+                // action.payload is the deleted _id string
+                state.projects = state.projects.filter(
+                    (p) => getId(p) !== action.payload
+                )
+                if (state.currentProject && getId(state.currentProject) === action.payload) {
+                    state.currentProject = null
+                }
             })
 
         // ── Fetch project pages (saved images) ─────────────────────────────
@@ -83,7 +117,7 @@ const projectSlice = createSlice({
                 state.pagesLoading = false
             })
 
-        // ── Fetch available pages (all from sectioned_crops) ───────────────
+        // ── Fetch available pages ──────────────────────────────────────────
         builder
             .addCase(fetchAvailablePages.pending, (state) => {
                 state.availableLoading = true
@@ -105,24 +139,27 @@ const projectSlice = createSlice({
             .addCase(updateProjectPages.fulfilled, (state, action) => {
                 state.pagesUpdating = false
                 const { id, data } = action.payload
-                // Update the cached page data
                 state.projectPages[id] = data
-                // Update image_count in the projects list
-                const proj = state.projects.find((p) => p.id === id)
+                // Update image count on the project in the list
+                const proj = state.projects.find((p) => getId(p) === id)
                 if (proj) proj.image_count = data.total_selected
             })
             .addCase(updateProjectPages.rejected, (state) => {
                 state.pagesUpdating = false
             })
+
         // ── Rename project ─────────────────────────────────────────────────
         builder
             .addCase(renameProject.fulfilled, (state, action) => {
                 const updated = action.payload
-                const proj = state.projects.find((p) => p.id === updated.id)
+                const proj = state.projects.find((p) => getId(p) === getId(updated))
                 if (proj) proj.name = updated.name
+                if (state.currentProject && getId(state.currentProject) === getId(updated)) {
+                    state.currentProject.name = updated.name
+                }
             })
     },
 })
 
-export const { clearProjectError, clearProjectPages } = projectSlice.actions
+export const { clearProjectError, clearProjectPages, clearCurrentProject } = projectSlice.actions
 export default projectSlice.reducer

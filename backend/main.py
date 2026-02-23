@@ -6,14 +6,23 @@ from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
 from pydantic import BaseModel
 from typing import Optional
+from contextlib import asynccontextmanager
 import os, shutil, json, glob
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load .env before anything else
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+# ─── MongoDB router ────────────────────────────────────────────────────────────
+from routes.projects import router as projects_router
+from db.mongo import get_client
 
 # ─── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'budget.db')}"
 UPLOAD_DIR   = os.path.join(BASE_DIR, "uploads", "pdfs")
-PROC_DIR     = os.path.join(BASE_DIR, "processing")   # per-job subdirs live here
+PROC_DIR     = os.path.join(BASE_DIR, "local_pdf_processing")  # per-job subdirs live here
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PROC_DIR,   exist_ok=True)
 
@@ -218,8 +227,23 @@ class ProjectOut(BaseModel):
     class Config:
         from_attributes = True
 
-# ─── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="Procurement and Co. API", version="2.0.0")
+# ─── App lifespan (MongoDB connect / disconnect) ──────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup — verify MongoDB connection
+    try:
+        client = get_client()
+        await client.admin.command("ping")
+        print("[MongoDB] ✅ Connected to Atlas")
+    except Exception as e:
+        print(f"[MongoDB] ⚠️  Could not connect: {e}")
+    yield
+    # Shutdown — close MongoDB connection
+    client = get_client()
+    client.close()
+    print("[MongoDB] 🔌 Connection closed")
+
+app = FastAPI(title="Procurement and Co. API", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -231,8 +255,11 @@ app.add_middleware(
 
 uploads_path = os.path.join(BASE_DIR, "uploads")
 os.makedirs(uploads_path, exist_ok=True)
-app.mount("/uploads",    StaticFiles(directory=uploads_path), name="uploads")
-app.mount("/processing", StaticFiles(directory=PROC_DIR),     name="processing")
+app.mount("/uploads",              StaticFiles(directory=uploads_path), name="uploads")
+app.mount("/local_pdf_processing", StaticFiles(directory=PROC_DIR),     name="local_pdf_processing")
+
+# ─── Mount routers ─────────────────────────────────────────────────────────────
+app.include_router(projects_router)   # MongoDB-backed /projects/* endpoints
 
 # ─── Budget endpoints ──────────────────────────────────────────────────────────
 @app.get("/budget/{section}")
@@ -549,7 +576,8 @@ def _crop_regions(image_path: str, page_num: int, regions, out_dir: str):
     """
     Given a list of region dicts (from _detect_multiple_diagrams),
     crop each from the image and save to out_dir.
-    Returns list of (out_path, filename, label) tuples.
+    Returns list of (out_path, filename, label, diagram_seq) tuples.
+    diagram_seq is '' for a single-diagram page, or 'a'/'b'/... for multi-diagram pages.
     """
     import cv2
 
@@ -574,15 +602,14 @@ def _crop_regions(image_path: str, page_num: int, regions, out_dir: str):
 
         cropped = image[y:y+h, x:x+w]
 
-        if len(regions) == 1:
-            filename = f"crop{page_num}.png"
-        else:
-            sub_letter = chr(ord("a") + idx)
-            filename   = f"crop{page_num}.{sub_letter}.png"
+        # diagram_seq is ALWAYS a letter — 'a' for single-diagram, 'a'/'b'/… for multi
+        sub_letter  = chr(ord("a") + idx)          # idx=0 → 'a', idx=1 → 'b', …
+        diagram_seq = sub_letter
+        filename    = f"crop{page_num}.{sub_letter}.png"
 
         out_path = os.path.join(out_dir, filename)
         cv2.imwrite(out_path, cropped)
-        created.append((out_path, filename, region["label"]))
+        created.append((out_path, filename, region["label"], diagram_seq))
 
     return created
 
@@ -602,12 +629,11 @@ def _run_processing(job_id: int, pdf_path: str, dpi: int, min_area_pct: float):
         db.close(); return
 
     job_dir       = job.job_dir
-    temp_dir      = os.path.join(job_dir, "temp_pages")
-    crops_dir     = os.path.join(job_dir, "final_crops")
-    sectioned_dir = os.path.join(job_dir, "sectioned_crops")
+    temp_dir      = os.path.join(job_dir, "temp")       # raw PDF page images
+    crops_dir     = os.path.join(job_dir, "sectioned")  # YOLO-cropped diagram images
+    sectioned_dir = os.path.join(job_dir, "sectioned")  # sub-split diagrams (same folder)
     os.makedirs(temp_dir,      exist_ok=True)
     os.makedirs(crops_dir,     exist_ok=True)
-    os.makedirs(sectioned_dir, exist_ok=True)
 
     try:
         # ── STEP 1: PDF → page images ─────────────────────────────────────────
@@ -682,26 +708,29 @@ def _run_processing(job_id: int, pdf_path: str, dpi: int, min_area_pct: float):
             print(f"[JOB {job_id}] Page {page_num}: {len(regions)} region(s) → {[r['label'] for r in regions]}")
 
             if len(regions) == 1 and regions[0]["label"] == "full":
-                # Single diagram — copy as-is
-                dest = os.path.join(sectioned_dir, f"crop{page_num}.png")
+                # Single diagram — copy as-is, but still use 'a' as diagram_seq
+                filename_single = f"crop{page_num}.a.png"
+                dest = os.path.join(sectioned_dir, filename_single)
                 shutil.copy2(crop_path, dest)
                 all_images.append({
-                    "path":      dest,
-                    "filename":  f"crop{page_num}.png",
-                    "label":     "full",
-                    "page_num":  page_num,
-                    "sub_index": 0,
+                    "path":        dest,
+                    "filename":    filename_single,
+                    "label":       "full",
+                    "diagram_seq": "a",    # always 'a' — consistent with multi-diagram convention
+                    "page_num":    page_num,
+                    "sub_index":   0,
                 })
             else:
                 # Multiple diagrams — crop each sub-region
                 created = _crop_regions(crop_path, page_num, regions, sectioned_dir)
-                for si, (out_path, filename, label) in enumerate(created):
+                for si, (out_path, filename, label, diagram_seq) in enumerate(created):
                     all_images.append({
-                        "path":      out_path,
-                        "filename":  filename,
-                        "label":     label,
-                        "page_num":  page_num,
-                        "sub_index": si,
+                        "path":        out_path,
+                        "filename":    filename,
+                        "label":       label,
+                        "diagram_seq": diagram_seq,
+                        "page_num":    page_num,
+                        "sub_index":   si,
                     })
 
             prog = 62 + int(35 * (idx + 1) / len(crop_paths))
@@ -745,7 +774,7 @@ async def start_processing(
             raise HTTPException(404, "PDF file missing on disk")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        job_dir   = os.path.join(PROC_DIR, f"job_{timestamp}_{pdf_id}")
+        job_dir   = os.path.join(PROC_DIR, f"tmp_{timestamp}_{pdf_id}")  # renamed to project_N on project creation
         os.makedirs(job_dir, exist_ok=True)
 
         job = ProcessingJob(
@@ -787,11 +816,11 @@ def get_job_images(job_id: int):
             return {"images": [], "total": 0, "status": "done"}
         with open(manifest_path) as f:
             data = json.load(f)
-        # Convert absolute paths to relative URLs served by /processing mount
+        # Convert absolute paths to relative URLs served by /local_pdf_processing mount
         rel_base = job.job_dir.replace(PROC_DIR, "").lstrip("/\\")
         for img in data["images"]:
             fname    = img["filename"]
-            img["url"] = f"/processing/{rel_base}/sectioned_crops/{fname}"
+            img["url"] = f"/local_pdf_processing/{rel_base}/sectioned/{fname}"
         return data
     finally:
         db.close()
@@ -816,28 +845,31 @@ def save_selected_images(job_id: int, body: dict):
             manifest = json.load(f)
 
         selected_names = set(body.get("selected", []))
-        selected_dir   = os.path.join(job.job_dir, "sectioned_crops", "selected_images")
+        # Temporary staging area inside the job folder (images will move to project_N/final/ on project creation)
+        selected_dir   = os.path.join(job.job_dir, "sectioned", "selected")
         os.makedirs(selected_dir, exist_ok=True)
 
         result_images = []
+        rel_base = job.job_dir.replace(PROC_DIR, "").lstrip("/\\")
         for img in manifest["images"]:
             if img["filename"] in selected_names:
                 src = img["path"]
                 dst = os.path.join(selected_dir, img["filename"])
                 if os.path.exists(src):
                     shutil.copy(src, dst)
-                rel_base = job.job_dir.replace(PROC_DIR, "").lstrip("/\\")
                 result_images.append({
                     "filename":      img["filename"],
                     "page_number":   img["page_num"],
                     "label":         img["label"],
+                    "diagram_seq":   img.get("diagram_seq", "a"),  # always a letter; 'a' for single-diagram
                     "sub_index":     img["sub_index"],
                     "original_path": src,
                     "saved_path":    dst,
-                    "url": f"/processing/{rel_base}/sectioned_crops/selected_images/{img['filename']}",
+                    "url": f"/local_pdf_processing/{rel_base}/sectioned/selected/{img['filename']}",
                 })
 
         metadata = {
+            "project_id":     None,            # filled in by create_project (will be MongoDB _id)
             "total_selected": len(result_images),
             "timestamp":      datetime.now().isoformat(),
             "dpi":            job.dpi,
@@ -884,103 +916,16 @@ def yolo_status():
     }
 
 
-# ─── Projects endpoints ────────────────────────────────────────────────────────
-
-@app.get("/projects")
-def list_projects():
-    """Return all saved projects, newest first."""
-    db = SessionLocal()
-    try:
-        projects = db.query(Project).order_by(Project.id.desc()).all()
-        return [ProjectOut.model_validate(p) for p in projects]
-    finally:
-        db.close()
-
-
-@app.get("/projects/{project_id}")
-def get_project(project_id: int):
-    """Return a single project by id."""
-    db = SessionLocal()
-    try:
-        proj = db.query(Project).filter(Project.id == project_id).first()
-        if not proj:
-            raise HTTPException(404, "Project not found")
-        return ProjectOut.model_validate(proj)
-    finally:
-        db.close()
-
-
-@app.post("/projects")
-def create_project(body: ProjectCreate):
-    """Create a new project record (called after save-selected succeeds)."""
-    db = SessionLocal()
-    try:
-        now = datetime.now().isoformat()
-        proj = Project(
-            name=body.name,
-            pdf_name=body.pdf_name,
-            job_id=body.job_id,
-            image_count=body.image_count,
-            metadata_path=body.metadata_path,
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(proj); db.commit(); db.refresh(proj)
-        return ProjectOut.model_validate(proj)
-    finally:
-        db.close()
-
-
-@app.delete("/projects/{project_id}")
-def delete_project(project_id: int):
-    """Delete a project by id."""
-    db = SessionLocal()
-    try:
-        proj = db.query(Project).filter(Project.id == project_id).first()
-        if not proj:
-            raise HTTPException(404, "Project not found")
-        db.delete(proj); db.commit()
-        return {"ok": True}
-    finally:
-        db.close()
-
-
-class ProjectUpdate(BaseModel):
-    name: Optional[str] = None
-
-@app.patch("/projects/{project_id}")
-def update_project(project_id: int, body: ProjectUpdate):
-    """Update a project's name."""
-    db = SessionLocal()
-    try:
-        proj = db.query(Project).filter(Project.id == project_id).first()
-        if not proj:
-            raise HTTPException(404, "Project not found")
-        if body.name is not None:
-            proj.name = body.name.strip() or proj.name
-        proj.updated_at = datetime.now().isoformat()
-        db.commit(); db.refresh(proj)
-        return ProjectOut.model_validate(proj)
-    finally:
-        db.close()
+# ─── Project endpoints are handled by MongoDB router (routes/projects.py) ──────
+# POST   /projects              → create
+# GET    /projects              → list all
+# GET    /projects/{id}         → get one (with selected_diagram_metadata)
+# PATCH  /projects/{id}         → update fields
+# DELETE /projects/{id}         → delete
+# POST   /projects/{id}/attach-metadata  → sync processing JSON → MongoDB
 
 
 
-@app.get("/projects/{project_id}/metadata")
-def get_project_metadata(project_id: int):
-    """Return the saved JSON metadata for a project (for download in UI)."""
-    db = SessionLocal()
-    try:
-        proj = db.query(Project).filter(Project.id == project_id).first()
-        if not proj:
-            raise HTTPException(404, "Project not found")
-        if not proj.metadata_path or not os.path.exists(proj.metadata_path):
-            raise HTTPException(404, "Metadata file not found on disk")
-        with open(proj.metadata_path) as f:
-            data = json.load(f)
-        return JSONResponse(content=data)
-    finally:
-        db.close()
 
 
 # ── Upload external image to project ────────────────────────────────────────
@@ -1108,12 +1053,12 @@ def update_project_pages(project_id: int, body: PageUpdateBody):
 
         # ── Add ───────────────────────────────────────────────────────────────
         if body.add_filenames:
-            # Resolve from the job's sectioned_crops dir (sibling of selected_images)
-            selected_dir  = os.path.dirname(proj.metadata_path)          # …/selected_images
-            sectioned_dir = os.path.dirname(selected_dir)                 # …/sectioned_crops
-            job_dir       = os.path.dirname(sectioned_dir)                # …/job_XXXXX
+            # Resolve from the job's sectioned/ dir (sibling of selected/)
+            selected_dir  = os.path.dirname(proj.metadata_path)    # …/selected
+            sectioned_dir = os.path.dirname(selected_dir)           # …/sectioned
+            job_dir       = os.path.dirname(sectioned_dir)          # …/project_N or tmp_XXXXX
 
-            # Build a lookup of everything in sectioned_crops (and sub-dirs)
+            # Build a lookup of everything in sectioned/ (and sub-dirs)
             existing_filenames = {img["filename"] for img in images}
 
             # Load the original manifest to get metadata for requested files
@@ -1148,7 +1093,7 @@ def update_project_pages(project_id: int, body: PageUpdateBody):
                     "sub_index":     manifest_entry.get("sub_index", 0),
                     "original_path": manifest_entry.get("path", src),
                     "saved_path":    dst,
-                    "url":           f"/processing/{rel_base}/sectioned_crops/selected_images/{fname}",
+                    "url":           f"/local_pdf_processing/{rel_base}/sectioned/selected/{fname}",
                 })
                 existing_filenames.add(fname)
 
@@ -1203,7 +1148,7 @@ def get_available_pages(project_id: int):
                 "page_num":  img["page_num"],
                 "label":     img["label"],
                 "sub_index": img["sub_index"],
-                "url":       f"/processing/{rel_base}/sectioned_crops/{img['filename']}",
+                "url":       f"/local_pdf_processing/{rel_base}/sectioned/{img['filename']}",
             })
 
         return {"images": images, "total": len(images)}

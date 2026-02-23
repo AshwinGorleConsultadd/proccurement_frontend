@@ -42,7 +42,7 @@ export const deleteProject = createAsyncThunk(
     async (id, { rejectWithValue }) => {
         try {
             await api.delete(`/projects/${id}`)
-            return id
+            return id   // returns the _id string (MongoDB) or numeric id (legacy)
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)
         }

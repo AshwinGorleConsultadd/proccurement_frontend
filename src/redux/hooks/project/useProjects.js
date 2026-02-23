@@ -2,15 +2,18 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useCallback } from 'react'
 import {
     fetchProjects,
+    fetchProject,
     createProject,
     deleteProject,
-    fetchProjectMetadata,
     fetchProjectPages,
     fetchAvailablePages,
     updateProjectPages,
     renameProject,
 } from '../../actions/project/projectActions'
-import { clearProjectPages } from '../../slices/projectSlice'
+import { clearProjectPages, clearCurrentProject } from '../../slices/projectSlice'
+
+// Works with both MongoDB _id (string) and legacy SQLite id (number)
+const getId = (p) => p?._id ?? p?.id
 
 export function useProjects() {
     const dispatch = useDispatch()
@@ -18,6 +21,8 @@ export function useProjects() {
         projects,
         loading,
         error,
+        currentProject,
+        currentProjectLoading,
         projectPages,
         availablePages,
         pagesLoading,
@@ -26,6 +31,11 @@ export function useProjects() {
     } = useSelector((state) => state.projects)
 
     const load = useCallback(() => dispatch(fetchProjects()), [dispatch])
+
+    const loadOne = useCallback(
+        (id) => dispatch(fetchProject(id)),
+        [dispatch]
+    )
 
     const create = useCallback(
         (data) => dispatch(createProject(data)),
@@ -37,26 +47,32 @@ export function useProjects() {
         [dispatch]
     )
 
-    /** Fetch metadata JSON and trigger a browser download */
+    /** Download the selected_diagram_metadata from the MongoDB project document */
     const downloadMetadata = useCallback(
         async (project) => {
-            const result = await dispatch(fetchProjectMetadata(project.id))
-            if (result?.payload?.data) {
+            const projectId = getId(project)
+            if (!projectId) return
+            const { api } = await import('../../api/apiClient')
+            try {
+                const res = await api.get(`/projects/${projectId}`)
+                const data = res.data?.selected_diagram_metadata ?? res.data
                 const blob = new Blob(
-                    [JSON.stringify(result.payload.data, null, 2)],
+                    [JSON.stringify(data, null, 2)],
                     { type: 'application/json' }
                 )
                 const url = URL.createObjectURL(blob)
                 const a = document.createElement('a')
                 a.href = url
-                a.download = `${project.name.replace(/\s+/g, '_')}_metadata.json`
+                a.download = `${(project.name || 'project').replace(/\s+/g, '_')}_metadata.json`
                 document.body.appendChild(a)
                 a.click()
                 document.body.removeChild(a)
                 URL.revokeObjectURL(url)
+            } catch (e) {
+                console.error('[downloadMetadata] failed:', e)
             }
         },
-        [dispatch]
+        []
     )
 
     /** Load the saved pages for a project */
@@ -89,16 +105,24 @@ export function useProjects() {
         [dispatch]
     )
 
+    const clearCurrentProj = useCallback(
+        () => dispatch(clearCurrentProject()),
+        [dispatch]
+    )
+
     return {
         projects,
         loading,
         error,
+        currentProject,
+        currentProjectLoading,
         projectPages,
         availablePages,
         pagesLoading,
         availableLoading,
         pagesUpdating,
         load,
+        loadOne,
         create,
         remove,
         rename,
@@ -107,5 +131,6 @@ export function useProjects() {
         loadAvailablePages,
         updatePages,
         clearPages,
+        clearCurrentProj,
     }
 }

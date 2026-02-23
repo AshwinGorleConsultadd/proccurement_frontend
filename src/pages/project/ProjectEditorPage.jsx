@@ -128,7 +128,7 @@ function ThumbCard({ img, mode, checked, onToggle, onDoubleClick }) {
             onClick={onToggle}
             onDoubleClick={(e) => { e.preventDefault(); onDoubleClick?.() }}
             title={`${img.filename}\n(double-click to view full size)`}
-            className={`relative group cursor-pointer rounded-xl overflow-hidden transition-all duration-200 border-2 select-none
+            className={`relative group cursor-pointer rounded-xl overflow-hidden transition-all duration-200 border-2 select-none flex flex-col
                 ${checked
                     ? mode === "remove"
                         ? "border-red-500 shadow-lg shadow-red-500/20 ring-2 ring-red-500/30"
@@ -136,7 +136,8 @@ function ThumbCard({ img, mode, checked, onToggle, onDoubleClick }) {
                     : "border-border hover:border-violet-400/60 hover:shadow-md"
                 }`}
         >
-            <div className="aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden">
+            {/* Image area */}
+            <div className="aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden relative">
                 {err ? (
                     <div className="flex flex-col items-center gap-1 text-muted-foreground/40">
                         <ImageOff className="h-8 w-8" />
@@ -148,44 +149,60 @@ function ThumbCard({ img, mode, checked, onToggle, onDoubleClick }) {
                         onError={() => setErr(true)}
                     />
                 )}
-            </div>
 
-            {/* Double-click hint */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <div className="bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center gap-1">
-                    <ZoomIn className="h-3 w-3 text-white/70" />
-                    <span className="text-[10px] text-white/70 font-medium">double-click</span>
+                {/* Double-click hint — inside image so it doesn't push layout */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-black/40 backdrop-blur-sm rounded-lg px-2 py-1 flex items-center gap-1">
+                        <ZoomIn className="h-3 w-3 text-white/70" />
+                        <span className="text-[10px] text-white/70 font-medium">double-click</span>
+                    </div>
+                </div>
+
+                {/* Select indicator */}
+                <div className="absolute top-2 right-2">
+                    <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shadow-sm transition-all duration-150
+                        ${checked
+                            ? mode === "remove" ? "bg-red-500 border-red-500" : "bg-emerald-500 border-emerald-500"
+                            : "bg-background/80 border-border group-hover:border-violet-400/60"
+                        }`}>
+                        {checked && (
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Select indicator */}
-            <div className="absolute top-2 right-2">
-                <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center shadow-sm transition-all duration-150
-                    ${checked
-                        ? mode === "remove" ? "bg-red-500 border-red-500" : "bg-emerald-500 border-emerald-500"
-                        : "bg-background/80 border-border group-hover:border-violet-400/60"
-                    }`}>
-                    {checked && (
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                    )}
-                </div>
-            </div>
-
-            <div className="absolute bottom-2 left-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider bg-background/90 backdrop-blur-sm border border-border/60 text-muted-foreground rounded-md px-1.5 py-0.5">
-                    {img.label || img.filename}
-                </span>
-            </div>
-            <div className={`px-2.5 py-1.5 text-[10px] font-medium truncate border-t transition-colors
+            {/* ── Footer: filename + label — always visible below image ── */}
+            <div className={`px-2.5 py-2 border-t flex items-center gap-1.5 min-w-0 transition-colors
                 ${checked
                     ? mode === "remove"
-                        ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200/50"
-                        : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200/50"
-                    : "bg-card text-muted-foreground border-border/50"
-                }`}>
-                {img.filename}
+                        ? "bg-red-50 dark:bg-red-950/30 border-red-200/50"
+                        : "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200/50"
+                    : "bg-card border-border/50"
+                }`}
+            >
+                {/* Filename — monospace, truncates with full name in tooltip */}
+                <span
+                    className={`flex-1 min-w-0 text-[11px] font-semibold font-mono truncate leading-none
+                        ${checked
+                            ? mode === "remove" ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"
+                            : "text-foreground/80"
+                        }`}
+                    title={img.filename}
+                >
+                    {img.filename}
+                </span>
+
+                {/* Label badge */}
+                <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wider rounded px-1.5 py-0.5 leading-none border
+                    ${img.label && img.label !== "full"
+                        ? "bg-violet-500/10 text-violet-500 border-violet-500/20"
+                        : "bg-muted text-muted-foreground border-border/60"
+                    }`}>
+                    {img.label || "full"}
+                </span>
             </div>
         </div>
     )
@@ -328,20 +345,21 @@ function UploadZone({ projectId, onUploaded }) {
    – Upload from computer in Add Pages
 ══════════════════════════════════════════════════════════════════════════ */
 function SourceTab({ project }) {
-    const { projectPages, availablePages, pagesLoading, availableLoading,
-        pagesUpdating, loadProjectPages, loadAvailablePages, updatePages, clearPages, downloadMetadata } = useProjects()
+    const { availablePages, availableLoading, loadOne,
+        loadAvailablePages, clearPages, downloadMetadata } = useProjects()
 
     const [subTab, setSubTab] = useState("saved")
     const [marked, setMarked] = useState({})
     const [downloadingId, setDownloadingId] = useState(null)
-    const [saveSuccess, setSaveSuccess] = useState(false)
-    const [lightbox, setLightbox] = useState(null) // { images, startIndex }
+    const [lightbox, setLightbox] = useState(null)
 
-    const id = project.id
-    const savedData = projectPages[id]
+    const id = project._id ?? project.id
+
+    // ── Saved images come directly from MongoDB project document ──────────
+    const savedImages = project.selected_diagram_metadata?.images ?? []
+
+    // ── Available images still fetched from backend (all in sectioned/) ───
     const allData = availablePages[id]
-
-    useEffect(() => { loadProjectPages(id) }, [id, loadProjectPages])
     useEffect(() => { if (subTab === "add" && !allData) loadAvailablePages(id) }, [subTab, id, allData, loadAvailablePages])
     useEffect(() => { return () => clearPages(id) }, [id, clearPages])
     useEffect(() => { setMarked({}) }, [subTab])
@@ -349,7 +367,6 @@ function SourceTab({ project }) {
     const toggleMark = (fn) => setMarked(prev => ({ ...prev, [fn]: !prev[fn] }))
     const markedList = Object.entries(marked).filter(([, v]) => v).map(([k]) => k)
     const hasMarked = markedList.length > 0
-    const savedImages = savedData?.images ?? []
     const allImages = allData?.images ?? []
     const savedFilenames = useMemo(() => new Set(savedImages.map(i => i.filename)), [savedImages])
     const addableImages = useMemo(() => allImages.filter(img => !savedFilenames.has(img.filename)), [allImages, savedFilenames])
@@ -366,15 +383,8 @@ function SourceTab({ project }) {
 
     const activeImages = subTab === "saved" ? savedImages : addableImages
     const activeGrouped = groupByPage(activeImages)
-    const activeLoading = subTab === "saved" ? pagesLoading : availableLoading
+    const activeLoading = subTab === "add" && availableLoading
     const pages = Object.keys(activeGrouped).sort((a, b) => Number(a) - Number(b))
-
-    const handleSave = async () => {
-        if (!hasMarked) return
-        const payload = subTab === "saved" ? { id, remove_filenames: markedList } : { id, add_filenames: markedList }
-        const result = await updatePages(payload)
-        if (!result?.error) { setSaveSuccess(true); setMarked({}); setTimeout(() => setSaveSuccess(false), 2000); loadProjectPages(id) }
-    }
 
     const handleDownload = async () => { setDownloadingId(id); await downloadMetadata(project); setDownloadingId(null) }
     const selectAll = () => { const next = {}; activeImages.forEach(img => { next[img.filename] = true }); setMarked(next) }
@@ -425,23 +435,9 @@ function SourceTab({ project }) {
                         </>
                     )}
                     <div className="w-px h-5 bg-border/60 mx-1" />
-                    {subTab === "saved" ? (
-                        <Button size="sm" disabled={!hasMarked || pagesUpdating} onClick={handleSave}
-                            className="h-8 text-xs gap-1.5 bg-red-500 hover:bg-red-600 text-white border-0 shadow-sm">
-                            {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            Remove
-                        </Button>
-                    ) : (
-                        <Button size="sm" disabled={!hasMarked || pagesUpdating} onClick={handleSave}
-                            className="h-8 text-xs gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-0 shadow-sm">
-                            {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                            Add Selected
-                        </Button>
-                    )}
-                    {saveSuccess && <span className="text-xs text-emerald-500 font-semibold ml-1 animate-pulse">✓ Saved!</span>}
                     <Button size="sm" variant="outline"
                         className="h-8 text-xs gap-1.5 border-violet-500/25 text-violet-500 hover:bg-violet-500/10 ml-1"
-                        disabled={!project.metadata_path || downloadingId === id} onClick={handleDownload}>
+                        disabled={downloadingId === id} onClick={handleDownload}>
                         {downloadingId === id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                         Download JSON
                     </Button>
@@ -454,7 +450,7 @@ function SourceTab({ project }) {
                 {subTab === "add" && (
                     <UploadZone
                         projectId={id}
-                        onUploaded={() => { loadProjectPages(id); loadAvailablePages(id) }}
+                        onUploaded={() => { loadAvailablePages(id) }}
                     />
                 )}
 
@@ -531,7 +527,7 @@ function EditorTab() {
 /* ── Summary Tab ────────────────────────────────────────────────────────── */
 function SummaryTab({ project }) {
     const { projectPages, pagesLoading, loadProjectPages } = useProjects()
-    const id = project.id
+    const id = project._id ?? project.id   // MongoDB _id
     const savedData = projectPages[id]
     const savedImages = savedData?.images ?? []
     useEffect(() => { loadProjectPages(id) }, [id, loadProjectPages])
@@ -636,7 +632,7 @@ function ProjectNameEditor({ project, onRename }) {
         const trimmed = value.trim()
         if (!trimmed || trimmed === project?.name) { cancel(); return }
         setSaving(true)
-        await onRename(project.id, trimmed)
+        await onRename(project._id ?? project.id, trimmed)
         setSaving(false)
         setEditing(false)
     }
@@ -681,11 +677,24 @@ function ProjectNameEditor({ project, onRename }) {
 export function ProjectEditorPage() {
     const { id } = useParams()
     const navigate = useNavigate()
-    const { projects, load, rename } = useProjects()
+    const {
+        currentProject,
+        currentProjectLoading,
+        error,
+        loadOne,
+        rename,
+        clearCurrentProj,
+    } = useProjects()
     const [activeTab, setActiveTab] = useState("source")
 
-    useEffect(() => { load() }, [load])
-    const project = projects.find(p => String(p.id) === String(id))
+    // Fetch this specific project from backend on mount (or when id changes)
+    // This ensures it works even on direct navigation / page refresh
+    useEffect(() => {
+        loadOne(id)
+        return () => clearCurrentProj()   // clean up on unmount
+    }, [id])   // eslint-disable-line react-hooks/exhaustive-deps
+
+    const project = currentProject
 
     const TABS = [
         { key: "editor", label: "Editor", icon: PenLine, desc: "Visual canvas editor" },
@@ -693,6 +702,35 @@ export function ProjectEditorPage() {
         { key: "budget", label: "Budget", icon: Receipt, desc: "View & edit budget" },
         { key: "summary", label: "Summary", icon: BarChart3, desc: "Project overview" },
     ]
+
+    // Loading state
+    if (currentProjectLoading && !project) {
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-background gap-3 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="text-sm font-medium">Loading project…</span>
+            </div>
+        )
+    }
+
+    // Error / not found state
+    if (!currentProjectLoading && !project && error) {
+        return (
+            <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4 text-center px-6">
+                <div className="h-16 w-16 rounded-2xl bg-destructive/10 flex items-center justify-center">
+                    <X className="h-8 w-8 text-destructive" />
+                </div>
+                <div>
+                    <p className="font-semibold mb-1">Project not found</p>
+                    <p className="text-sm text-muted-foreground max-w-xs">{error}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => navigate("/projects")}>
+                    <ArrowLeft className="h-4 w-4 mr-1.5" />
+                    Back to Projects
+                </Button>
+            </div>
+        )
+    }
 
     return (
         <div className="fixed inset-0 flex bg-background overflow-hidden">
@@ -753,7 +791,8 @@ export function ProjectEditorPage() {
                 </nav>
 
                 {project && (
-                    <div className="px-3 py-3 border-t border-sidebar-border">
+                    <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
+                        {/* Image count */}
                         <div className="rounded-xl bg-sidebar-accent border border-sidebar-border px-3 py-2.5 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <Images className="h-3.5 w-3.5 text-violet-400/70" />
@@ -761,6 +800,16 @@ export function ProjectEditorPage() {
                             </div>
                             <span className="text-sm font-bold text-sidebar-foreground/75">{project.image_count}</span>
                         </div>
+                        {/* DPI badge if available */}
+                        {project.detail?.dpi && (
+                            <div className="rounded-xl bg-sidebar-accent border border-sidebar-border px-3 py-2.5 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Database className="h-3.5 w-3.5 text-indigo-400/70" />
+                                    <span className="text-[11px] text-sidebar-foreground/40 font-medium">DPI</span>
+                                </div>
+                                <span className="text-sm font-bold text-sidebar-foreground/75">{project.detail.dpi}</span>
+                            </div>
+                        )}
                     </div>
                 )}
             </aside>
@@ -779,6 +828,18 @@ export function ProjectEditorPage() {
                             </div>
                         ) : null
                     )}
+                    {/* Refresh button */}
+                    <button
+                        onClick={() => loadOne(id)}
+                        disabled={currentProjectLoading}
+                        className="ml-auto h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-colors disabled:opacity-30"
+                        title="Refresh project data from server"
+                    >
+                        {currentProjectLoading
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <RefreshCw className="h-3.5 w-3.5" />
+                        }
+                    </button>
                 </div>
 
                 <div className="flex-1 overflow-hidden flex flex-col">

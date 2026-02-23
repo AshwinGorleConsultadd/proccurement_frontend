@@ -1,0 +1,445 @@
+{
+  "images": [
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop1.a.png",
+      "filename": "crop1.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 1,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop2.a.png",
+      "filename": "crop2.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 2,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop3.a.png",
+      "filename": "crop3.a.png",
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "page_num": 3,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop3.b.png",
+      "filename": "crop3.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 3,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop3.c.png",
+      "filename": "crop3.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 3,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop4.a.png",
+      "filename": "crop4.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 4,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop5.a.png",
+      "filename": "crop5.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 5,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop6.a.png",
+      "filename": "crop6.a.png",
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "page_num": 6,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop6.b.png",
+      "filename": "crop6.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 6,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop6.c.png",
+      "filename": "crop6.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 6,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop7.a.png",
+      "filename": "crop7.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 7,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop8.a.png",
+      "filename": "crop8.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 8,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop9.a.png",
+      "filename": "crop9.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 9,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop10.a.png",
+      "filename": "crop10.a.png",
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "page_num": 10,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop10.b.png",
+      "filename": "crop10.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 10,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop10.c.png",
+      "filename": "crop10.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 10,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop11.a.png",
+      "filename": "crop11.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 11,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop12.a.png",
+      "filename": "crop12.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 12,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop13.a.png",
+      "filename": "crop13.a.png",
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "page_num": 13,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop13.b.png",
+      "filename": "crop13.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 13,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop13.c.png",
+      "filename": "crop13.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 13,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop14.a.png",
+      "filename": "crop14.a.png",
+      "label": "top-left",
+      "diagram_seq": "a",
+      "page_num": 14,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop14.b.png",
+      "filename": "crop14.b.png",
+      "label": "top-right",
+      "diagram_seq": "b",
+      "page_num": 14,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop14.c.png",
+      "filename": "crop14.c.png",
+      "label": "bottom-left",
+      "diagram_seq": "c",
+      "page_num": 14,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop14.d.png",
+      "filename": "crop14.d.png",
+      "label": "bottom-right",
+      "diagram_seq": "d",
+      "page_num": 14,
+      "sub_index": 3
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop15.a.png",
+      "filename": "crop15.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 15,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop16.a.png",
+      "filename": "crop16.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 16,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop17.a.png",
+      "filename": "crop17.a.png",
+      "label": "top-left",
+      "diagram_seq": "a",
+      "page_num": 17,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop17.b.png",
+      "filename": "crop17.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 17,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop18.a.png",
+      "filename": "crop18.a.png",
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "page_num": 18,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop18.b.png",
+      "filename": "crop18.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 18,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop18.c.png",
+      "filename": "crop18.c.png",
+      "label": "top-right",
+      "diagram_seq": "c",
+      "page_num": 18,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop18.d.png",
+      "filename": "crop18.d.png",
+      "label": "top-left",
+      "diagram_seq": "d",
+      "page_num": 18,
+      "sub_index": 3
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop19.a.png",
+      "filename": "crop19.a.png",
+      "label": "top-left",
+      "diagram_seq": "a",
+      "page_num": 19,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop19.b.png",
+      "filename": "crop19.b.png",
+      "label": "top-right",
+      "diagram_seq": "b",
+      "page_num": 19,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop19.c.png",
+      "filename": "crop19.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 19,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop19.d.png",
+      "filename": "crop19.d.png",
+      "label": "bottom-left",
+      "diagram_seq": "d",
+      "page_num": 19,
+      "sub_index": 3
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop20.a.png",
+      "filename": "crop20.a.png",
+      "label": "top-right",
+      "diagram_seq": "a",
+      "page_num": 20,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop20.b.png",
+      "filename": "crop20.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 20,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop20.c.png",
+      "filename": "crop20.c.png",
+      "label": "bottom-left",
+      "diagram_seq": "c",
+      "page_num": 20,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop20.d.png",
+      "filename": "crop20.d.png",
+      "label": "top-right",
+      "diagram_seq": "d",
+      "page_num": 20,
+      "sub_index": 3
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop21.a.png",
+      "filename": "crop21.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 21,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop22.a.png",
+      "filename": "crop22.a.png",
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "page_num": 22,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop22.b.png",
+      "filename": "crop22.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 22,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop22.c.png",
+      "filename": "crop22.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 22,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop23.a.png",
+      "filename": "crop23.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 23,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop24.a.png",
+      "filename": "crop24.a.png",
+      "label": "full",
+      "diagram_seq": "a",
+      "page_num": 24,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop25.a.png",
+      "filename": "crop25.a.png",
+      "label": "top-left",
+      "diagram_seq": "a",
+      "page_num": 25,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop25.b.png",
+      "filename": "crop25.b.png",
+      "label": "bottom",
+      "diagram_seq": "b",
+      "page_num": 25,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop25.c.png",
+      "filename": "crop25.c.png",
+      "label": "bottom",
+      "diagram_seq": "c",
+      "page_num": 25,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop25.d.png",
+      "filename": "crop25.d.png",
+      "label": "bottom",
+      "diagram_seq": "d",
+      "page_num": 25,
+      "sub_index": 3
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop26.a.png",
+      "filename": "crop26.a.png",
+      "label": "bottom",
+      "diagram_seq": "a",
+      "page_num": 26,
+      "sub_index": 0
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop26.b.png",
+      "filename": "crop26.b.png",
+      "label": "top-left",
+      "diagram_seq": "b",
+      "page_num": 26,
+      "sub_index": 1
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop26.c.png",
+      "filename": "crop26.c.png",
+      "label": "top-left",
+      "diagram_seq": "c",
+      "page_num": 26,
+      "sub_index": 2
+    },
+    {
+      "path": "/Users/consultadd/Desktop/proccurement_frontend/backend/local_pdf_processing/tmp_20260223_220052_15/sectioned/crop26.d.png",
+      "filename": "crop26.d.png",
+      "label": "top-left",
+      "diagram_seq": "d",
+      "page_num": 26,
+      "sub_index": 3
+    }
+  ],
+  "total": 55
+}

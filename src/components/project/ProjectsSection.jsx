@@ -16,6 +16,9 @@ import {
     ArrowRight,
 } from "lucide-react"
 
+// Works with MongoDB _id (string) and legacy SQLite id (number)
+const getId = (p) => p?._id ?? p?.id
+
 function formatDate(iso) {
     if (!iso) return "—"
     return new Date(iso).toLocaleDateString("en-US", {
@@ -44,14 +47,13 @@ export function ProjectsSection() {
 
     const handleDownload = async (e, project) => {
         e.stopPropagation()
-        if (!project.metadata_path) return
-        setDownloadingId(project.id)
+        setDownloadingId(getId(project))
         await downloadMetadata(project)
         setDownloadingId(null)
     }
 
     const handleOpen = (project) => {
-        navigate(`/projects/${project.id}`)
+        navigate(`/projects/${getId(project)}`)
     }
 
     return (
@@ -114,81 +116,87 @@ export function ProjectsSection() {
                 {/* Projects grid */}
                 {!loading && projects.length > 0 && (
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {projects.map((project) => (
-                            <div
-                                key={project.id}
-                                onClick={() => handleOpen(project)}
-                                className="group relative flex flex-col gap-3 rounded-xl border border-border bg-card hover:border-violet-500/40 hover:bg-violet-500/5 transition-all duration-200 p-4 cursor-pointer"
-                            >
-                                {/* Open indicator */}
-                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <ArrowRight className="h-3.5 w-3.5 text-violet-400" />
-                                </div>
+                        {projects.map((project) => {
+                            const pid = getId(project)
+                            const imageCount = project.image_count
+                                ?? project.selected_diagram_metadata?.total
+                                ?? 0
+                            return (
+                                <div
+                                    key={pid}
+                                    onClick={() => handleOpen(project)}
+                                    className="group relative flex flex-col gap-3 rounded-xl border border-border bg-card hover:border-violet-500/40 hover:bg-violet-500/5 transition-all duration-200 p-4 cursor-pointer"
+                                >
+                                    {/* Open indicator */}
+                                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <ArrowRight className="h-3.5 w-3.5 text-violet-400" />
+                                    </div>
 
-                                {/* Project icon + name */}
-                                <div className="flex items-start gap-3">
-                                    <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20 flex items-center justify-center">
-                                        <FileJson className="h-5 w-5 text-violet-400" />
+                                    {/* Project icon + name */}
+                                    <div className="flex items-start gap-3">
+                                        <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20 flex items-center justify-center">
+                                            <FileJson className="h-5 w-5 text-violet-400" />
+                                        </div>
+                                        <div className="min-w-0 flex-1 pr-5">
+                                            <p className="font-semibold text-sm leading-tight truncate" title={project.name}>
+                                                {project.name}
+                                            </p>
+                                            {project.description && (
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                    <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                                                    <span className="text-xs text-muted-foreground truncate" title={project.description}>
+                                                        {project.description}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="min-w-0 flex-1 pr-5">
-                                        <p className="font-semibold text-sm leading-tight truncate" title={project.name}>
-                                            {project.name}
-                                        </p>
-                                        {project.pdf_name && (
-                                            <div className="flex items-center gap-1 mt-0.5">
-                                                <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                                                <span className="text-xs text-muted-foreground truncate" title={project.pdf_name}>
-                                                    {project.pdf_name}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
 
-                                {/* Stats row */}
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                    <div className="flex items-center gap-1">
-                                        <Images className="h-3 w-3" />
-                                        <span>{project.image_count} image{project.image_count !== 1 ? "s" : ""}</span>
+                                    {/* Stats row */}
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                        <div className="flex items-center gap-1">
+                                            <Images className="h-3 w-3" />
+                                            <span>{imageCount} image{imageCount !== 1 ? "s" : ""}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <CalendarDays className="h-3 w-3" />
+                                            <span>{formatDate(project.created_at)}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <CalendarDays className="h-3 w-3" />
-                                        <span>{formatDate(project.created_at)}</span>
-                                    </div>
-                                </div>
 
-                                {/* Actions */}
-                                <div className="flex items-center gap-2 pt-1 border-t border-border/60">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="flex-1 h-7 text-xs gap-1 border-violet-500/20 text-violet-500 hover:bg-violet-500/10 hover:border-violet-500/40 disabled:opacity-40"
-                                        disabled={!project.metadata_path || downloadingId === project.id}
-                                        onClick={(e) => handleDownload(e, project)}
-                                        title={project.metadata_path ? "Download JSON metadata" : "No metadata available"}
-                                    >
-                                        {downloadingId === project.id
-                                            ? <Loader2 className="h-3 w-3 animate-spin" />
-                                            : <Download className="h-3 w-3" />
-                                        }
-                                        JSON
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 disabled:opacity-40"
-                                        disabled={deletingId === project.id}
-                                        onClick={(e) => handleDelete(e, project.id)}
-                                        title="Delete project"
-                                    >
-                                        {deletingId === project.id
-                                            ? <Loader2 className="h-3 w-3 animate-spin" />
-                                            : <Trash2 className="h-3.5 w-3.5" />
-                                        }
-                                    </Button>
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="flex-1 h-7 text-xs gap-1 border-violet-500/20 text-violet-500 hover:bg-violet-500/10 hover:border-violet-500/40 disabled:opacity-40"
+                                            disabled={downloadingId === pid}
+                                            onClick={(e) => handleDownload(e, project)}
+                                            title="Download JSON metadata"
+                                        >
+                                            {downloadingId === pid
+                                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                : <Download className="h-3 w-3" />
+                                            }
+                                            JSON
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                                            disabled={deletingId === pid}
+                                            onClick={(e) => handleDelete(e, pid)}
+                                            title="Delete project"
+                                        >
+                                            {deletingId === pid
+                                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                : <Trash2 className="h-3.5 w-3.5" />
+                                            }
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 )}
             </CardContent>
