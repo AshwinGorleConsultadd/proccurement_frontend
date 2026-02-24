@@ -7,14 +7,14 @@ class BudgetItemCreate(BaseModel):
     vendor_description: str   = ""
     description:        str   = ""
     room_name:          str   = ""
-    page_no:            int   = None
+    page_no:            Optional[int]   = None
     qty:                str   = ""
-    unit_cost:          float = None
-    extended:           float = None
+    unit_cost:          Optional[float] = None
+    extended:           Optional[float] = None
     section:            str   = "general"
-    insert_relative_to: int   = None
+    insert_relative_to: Optional[int]   = None
     position:           str   = "below"
-    pdf_filename:       str   = None
+    pdf_filename:       Optional[str]   = None
 
 class BudgetItemUpdate(BaseModel):
     spec_no:            Optional[str]   = None
@@ -54,6 +54,7 @@ class PdfDocumentOut(BaseModel):
     section:      str
     page_count:   Optional[int] = None
     uploaded_at:  str
+    project_id:   Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -68,6 +69,7 @@ class JobOut(BaseModel):
     created_at:  str
     dpi:         int
     min_area_pct:float
+    project_id:  Optional[str] = None
     class Config:
         from_attributes = True
 

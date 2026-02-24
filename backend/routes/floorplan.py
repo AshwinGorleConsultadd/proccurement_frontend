@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from db.database import get_db, BASE_DIR
 from models.sql_models import ProcessingJob, PdfDocument
 from schemas.budget import JobOut
-from services.pdf_processing import run_processing, PROC_DIR, get_yolo_status
+from services.pdf_processing import run_processing, LOCAL_FILE_DB, get_yolo_status
 from routes.pdf import UPLOAD_DIR
 
 router = APIRouter(prefix="/floorplan", tags=["Floorplan"])
@@ -28,12 +28,16 @@ async def start_processing(
     if not os.path.exists(pdf_path):
         raise HTTPException(404, "PDF file missing on disk")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    job_dir   = os.path.join(PROC_DIR, f"tmp_{timestamp}_{pdf_id}")
+    project_id = pdf_doc.project_id
+    if not project_id:
+        raise HTTPException(400, "PDF is not associated with a MongoDB project")
+
+    # Path: local_file_db/project_{project_id}/pdf_processing/
+    job_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing")
     os.makedirs(job_dir, exist_ok=True)
 
     job = ProcessingJob(
-        pdf_id=pdf_id, status="pending", step="Queued — waiting to start",
+        pdf_id=pdf_id, project_id=project_id, status="pending", step="Queued — waiting to start",
         progress=0, job_dir=job_dir, dpi=dpi,
         min_area_pct=min_area_pct, created_at=datetime.now().isoformat(),
     )
@@ -56,15 +60,17 @@ def get_job_images(job_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Job not found")
     if job.status != "done":
         return {"images": [], "total": 0, "status": job.status}
-    manifest_path = os.path.join(job.job_dir, "manifest.json")
+    manifest_path = os.path.join(job.job_dir, "sectioned_diagram_registry.json")
     if not os.path.exists(manifest_path):
         return {"images": [], "total": 0, "status": "done"}
     with open(manifest_path) as f:
         data = json.load(f)
-    rel_base = job.job_dir.replace(PROC_DIR, "").lstrip("/\\")
+    
+    # rel_base should be project_699d.../pdf_processing
+    rel_base = job.job_dir.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
     for img in data["images"]:
         fname = img["filename"]
-        img["url"] = f"/local_pdf_processing/{rel_base}/sectioned/{fname}"
+        img["url"] = f"/local_file_db/{rel_base}/sectioned/{fname}"
     return data
 
 @router.post("/job/{job_id}/save-selected")
@@ -75,7 +81,7 @@ def save_selected_images(job_id: int, body: dict, db: Session = Depends(get_db))
     if job.status != "done":
         raise HTTPException(400, "Job not complete yet")
 
-    manifest_path = os.path.join(job.job_dir, "manifest.json")
+    manifest_path = os.path.join(job.job_dir, "sectioned_diagram_registry.json")
     with open(manifest_path) as f:
         manifest = json.load(f)
 
@@ -84,7 +90,7 @@ def save_selected_images(job_id: int, body: dict, db: Session = Depends(get_db))
     os.makedirs(selected_dir, exist_ok=True)
 
     result_images = []
-    rel_base = job.job_dir.replace(PROC_DIR, "").lstrip("/\\")
+    rel_base = job.job_dir.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
     for img in manifest["images"]:
         if img["filename"] in selected_names:
             src = img["path"]
@@ -99,7 +105,7 @@ def save_selected_images(job_id: int, body: dict, db: Session = Depends(get_db))
                 "sub_index":     img["sub_index"],
                 "original_path": src,
                 "saved_path":    dst,
-                "url": f"/local_pdf_processing/{rel_base}/sectioned/selected/{img['filename']}",
+                "url": f"/local_file_db/{rel_base}/sectioned/selected/{img['filename']}",
             })
 
     metadata = {

@@ -4,9 +4,14 @@ routes/projects.py
 All /projects/* REST endpoints, backed by MongoDB via the project service.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, File, Form, UploadFile, Depends
 from models.project import ProjectCreate, ProjectOut, ProjectUpdate
 from services import project_service
+import os, json, shutil
+from datetime import datetime
+from services.project_service import LOCAL_FILE_DB
+from db.mongo import get_projects_collection
+from bson import ObjectId
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -116,3 +121,135 @@ async def delete_project(project_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Project not found")
     return {"ok": True, "deleted_id": project_id}
+
+
+# ── Internal Pages (available in sectioned dir) ────────────────────────────────
+@router.get("/{project_id}/available-pages")
+async def get_available_pages(project_id: str):
+    """
+    Returns all detected diagrams for this project from its local_file_db manifest.
+    Used in the 'Add Pages' tab of the Source manager.
+    """
+    manifest_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", "sectioned_diagram_registry.json")
+    if not os.path.exists(manifest_path):
+        return {"images": [], "total": 0}
+
+    with open(manifest_path) as f:
+        data = json.load(f)
+
+    images = []
+    for img in data.get("images", []):
+        images.append({
+            "filename":  img["filename"],
+            "page_num":  img["page_num"],
+            "label":     img["label"],
+            "sub_index": img["sub_index"],
+            "url":       f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{img['filename']}",
+        })
+    return {"images": images, "total": len(images)}
+
+
+@router.get("/{project_id}/pages")
+async def get_project_saved_pages(project_id: str):
+    """
+    Returns the images currently saved in the project's MongoDB document.
+    Used in the 'Saved Pages' tab.
+    """
+    doc = await project_service.get_project_by_id(project_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    metadata = doc.get("selected_diagram_metadata") or {}
+    return {
+        "images":          metadata.get("images", []),
+        "total_selected":  metadata.get("total", 0)
+    }
+
+
+@router.patch("/{project_id}/pages")
+async def update_project_saved_pages(project_id: str, body: dict):
+    """
+    Adds or removes images from the project's selected_diagram_metadata.
+    body: { "add_filenames": [...], "remove_filenames": [...] }
+    """
+    doc = await project_service.get_project_by_id(project_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    metadata = doc.get("selected_diagram_metadata") or {"images": [], "total": 0}
+    images = metadata.get("images", [])
+    
+    add_list = body.get("add_filenames", [])
+    remove_list = body.get("remove_filenames", [])
+    
+    # Handle removals
+    if remove_list:
+        images = [img for img in images if img["filename"] not in remove_list]
+        
+    # Handle additions
+    if add_list:
+        # Load the processing manifest to get data for these files
+        manifest_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", "sectioned_diagram_registry.json")
+        if os.path.exists(manifest_path):
+            with open(manifest_path) as f:
+                manifest_data = json.load(f)
+            manifest_images = {img["filename"]: img for img in manifest_data.get("images", [])}
+            
+            existing_fnames = {img["filename"] for img in images}
+            for fname in add_list:
+                if fname in existing_fnames: continue
+                if fname in manifest_images:
+                    m_img = manifest_images[fname]
+                    images.append({
+                        "filename": fname,
+                        "page_number": m_img.get("page_num", 0),
+                        "label": m_img.get("label", "full"),
+                        "sub_index": m_img.get("sub_index", 0),
+                        "url": f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{fname}"
+                    })
+
+    # Update MongoDB
+    metadata["images"] = images
+    metadata["total"] = len(images)
+    metadata["updated_at"] = datetime.utcnow().isoformat()
+    
+    await project_service.update_project(project_id, {"selected_diagram_metadata": metadata})
+    return {"images": images, "total_selected": len(images)}
+
+
+@router.post("/{project_id}/upload-image")
+async def upload_image_to_mongo_project(
+    project_id: str,
+    file: UploadFile = File(...),
+    page_number: int = Form(1),
+    label: str = Form("UPLOADED")
+):
+    """Upload a custom image directly into the project's storage."""
+    # Create project-specific upload dir
+    upload_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    filename = f"upload_{int(datetime.now().timestamp())}_{file.filename}"
+    file_path = os.path.join(upload_dir, filename)
+    
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+        
+    url = f"/local_file_db/project_{project_id}/uploads/{filename}"
+    new_img = {
+        "filename": filename,
+        "url": url,
+        "page_number": page_number,
+        "label": label,
+        "source": "uploaded"
+    }
+    
+    # Update project in Mongo
+    col = get_projects_collection()
+    await col.update_one(
+        {"_id": ObjectId(project_id)},
+        {"$push": {"selected_diagram_metadata.images": new_img}}
+    )
+    
+    return {"ok": True, "image": new_img}

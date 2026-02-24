@@ -12,9 +12,9 @@ from bson import ObjectId
 
 from db.mongo import get_projects_collection
 
-# ── Folder root (same as PROC_DIR in main.py) ─────────────────────────────────
+# ── Folder root ─────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROC_DIR = os.path.join(BASE_DIR, "local_pdf_processing")
+LOCAL_FILE_DB = os.path.join(BASE_DIR, "local_file_db")
 
 
 async def create_project_document(data: dict) -> dict:
@@ -89,8 +89,8 @@ async def attach_diagram_metadata(project_id: str, metadata_path: str) -> dict |
       1. Renames the tmp_XXXXXX folder  →  project_{mongo_id}/
       2. Creates project_{mongo_id}/final/
       3. Moves + renames selected images  →  {mongo_id}_{page}_{seq}.png
-      4. Writes project_{mongo_id}/metadata.json with updated paths
-      5. Stores selected_diagram_metadata in the MongoDB project document
+      4. Writes project_{mongo_id}/selected_image_registry.json with updated paths
+      5. Stores selected_diagram_metadata and selected_image_registry in the MongoDB project document
     """
     if not os.path.exists(metadata_path):
         print(f"[attach_metadata] ⚠️  metadata file not found: {metadata_path}")
@@ -102,16 +102,16 @@ async def attach_diagram_metadata(project_id: str, metadata_path: str) -> dict |
     # ── Step 1:  Find and rename the tmp_ folder ───────────────────────────
     old_selected_dir = os.path.dirname(metadata_path)
 
-    # Walk up from old_selected_dir until its parent is PROC_DIR
+    # Walk up from old_selected_dir until its parent is LOCAL_FILE_DB
     old_tmp_dir = old_selected_dir
-    while os.path.dirname(old_tmp_dir) != PROC_DIR:
+    while os.path.dirname(old_tmp_dir) != LOCAL_FILE_DB:
         parent = os.path.dirname(old_tmp_dir)
         if parent == old_tmp_dir:       # reached filesystem root — safety guard
             break
         old_tmp_dir = parent
 
     # Rename tmp_XXXXXX  →  project_{mongo_id}
-    project_folder = os.path.join(PROC_DIR, f"project_{project_id}")
+    project_folder = os.path.join(LOCAL_FILE_DB, f"project_{project_id}")
     if old_tmp_dir != project_folder and os.path.exists(old_tmp_dir):
         os.rename(old_tmp_dir, project_folder)
         print(f"[attach_metadata] 📁 '{os.path.basename(old_tmp_dir)}' → 'project_{project_id}'")
@@ -145,8 +145,8 @@ async def attach_diagram_metadata(project_id: str, metadata_path: str) -> dict |
         if os.path.exists(old_path):
             shutil.move(old_path, new_full_path)
 
-        rel_path = new_full_path.replace(PROC_DIR, "").lstrip("/\\").replace("\\", "/")
-        new_url  = f"/local_pdf_processing/{rel_path}"
+        rel_path = new_full_path.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
+        new_url  = f"/local_file_db/{rel_path}"
 
         updated_images.append({
             **img,
@@ -155,8 +155,8 @@ async def attach_diagram_metadata(project_id: str, metadata_path: str) -> dict |
             "url":        new_url,
         })
 
-    # ── Step 3:  Write metadata.json into project root ─────────────────────
-    new_meta_path           = os.path.join(project_folder, "metadata.json")
+    # ── Step 3:  Write selected_image_registry.json into project root ──────
+    new_meta_path           = os.path.join(project_folder, "selected_image_registry.json")
     metadata["images"]      = updated_images
     metadata["project_id"]  = project_id
     with open(new_meta_path, "w") as f:
@@ -174,4 +174,5 @@ async def attach_diagram_metadata(project_id: str, metadata_path: str) -> dict |
 
     return await update_project(project_id, {
         "selected_diagram_metadata": selected_diagram_metadata,
+        "selected_image_registry": f"/local_file_db/project_{project_id}/selected_image_registry.json"
     })

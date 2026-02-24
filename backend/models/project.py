@@ -29,6 +29,8 @@ class ProjectCreate(BaseModel):
 
     # These fields are populated later (after processing / editor work)
     selected_diagram_metadata:  Optional[dict] = None
+    selected_image_registry:    Optional[str]  = None   # path to selected_image_registry.json
+    sectioned_diagram_registry: Optional[str]  = None   # path to sectioned_diagram_registry.json
     mask_registry:              Optional[dict] = None
     polygon_registry:           Optional[dict] = None
     group_registry:             Optional[dict] = None
@@ -40,6 +42,8 @@ class ProjectUpdate(BaseModel):
     description:                Optional[str]  = None
     source_pdf_path:            Optional[str]  = None
     selected_diagram_metadata:  Optional[dict] = None
+    selected_image_registry:    Optional[str]  = None
+    sectioned_diagram_registry: Optional[str]  = None
     mask_registry:              Optional[dict] = None
     polygon_registry:           Optional[dict] = None
     group_registry:             Optional[dict] = None
@@ -55,6 +59,8 @@ class ProjectOut(BaseModel):
     source_pdf_path:            Optional[str]  = None
 
     selected_diagram_metadata:  Optional[dict] = None
+    selected_image_registry:    Optional[str]  = None
+    sectioned_diagram_registry: Optional[str]  = None
     mask_registry:              Optional[dict] = None
     polygon_registry:           Optional[dict] = None
     group_registry:             Optional[dict] = None

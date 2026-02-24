@@ -3,9 +3,14 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from models.sql_models import ProcessingJob
 from db.database import SessionLocal, BASE_DIR
+import fitz
+import cv2
+from pymongo import MongoClient
+from bson import ObjectId
+from config import MONGO_URI, MONGO_DB_NAME
 
-PROC_DIR = os.path.join(BASE_DIR, "local_pdf_processing")
-os.makedirs(PROC_DIR, exist_ok=True)
+LOCAL_FILE_DB = os.path.join(BASE_DIR, "local_file_db")
+os.makedirs(LOCAL_FILE_DB, exist_ok=True)
 
 _yolo_model = None
 _yolo_load_error = None
@@ -146,6 +151,24 @@ def _crop_regions(image_path: str, page_num: int, regions, out_dir: str):
         created.append((out_path, filename, region["label"], sub_letter))
     return created
 
+def _sync_update_mongodb_project(project_id: str, registry_url: str):
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[MONGO_DB_NAME]
+        coll = db["projects"]
+        coll.update_one(
+            {"_id": ObjectId(project_id)},
+            {
+                "$set": {
+                    "sectioned_diagram_registry": registry_url,
+                    "updated_at": datetime.now().isoformat()
+                }
+            }
+        )
+        client.close()
+    except Exception as e:
+        print(f"[MongoDB] ❌ sync update failed: {e}")
+
 def run_processing(job_id: int, pdf_path: str, dpi: int, min_area_pct: float):
     db  = SessionLocal()
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
@@ -161,7 +184,6 @@ def run_processing(job_id: int, pdf_path: str, dpi: int, min_area_pct: float):
 
     try:
         _update_job(db, job, status="processing", step="Step 1/3 — Converting PDF to images (300 DPI)", progress=5)
-        import fitz
         pdf_doc     = fitz.open(pdf_path)
         total_pages = pdf_doc.page_count
         zoom        = dpi / 72
@@ -227,9 +249,14 @@ def run_processing(job_id: int, pdf_path: str, dpi: int, min_area_pct: float):
             prog = 62 + int(35 * (idx + 1) / len(crop_paths))
             _update_job(db, job, progress=prog)
 
-        manifest_path = os.path.join(job_dir, "manifest.json")
-        with open(manifest_path, "w") as f:
+        sectioned_registry_path = os.path.join(job_dir, "sectioned_diagram_registry.json")
+        with open(sectioned_registry_path, "w") as f:
             json.dump({"images": all_images, "total": len(all_images)}, f, indent=2)
+
+        # Update MongoDB project document (Sync call in threadpool)
+        if job.project_id:
+            registry_url = f"/local_file_db/project_{job.project_id}/pdf_processing/sectioned_diagram_registry.json"
+            _sync_update_mongodb_project(job.project_id, registry_url)
 
         _update_job(db, job, status="done", step="Complete — all steps finished", progress=100)
     except Exception as e:

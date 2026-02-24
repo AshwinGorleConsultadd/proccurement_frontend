@@ -15,7 +15,12 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 async def upload_pdf(file: UploadFile = File(...), section: str = Form("general"), db: Session = Depends(get_db)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files are allowed")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    # Date time format for project name: 20-02-2026_8_30_PM
+    project_name = now.strftime("%d-%m-%Y_%-I_%-M_%p")
+    
     safe_name = f"{timestamp}_{file.filename.replace(' ', '_')}"
     file_path = os.path.join(UPLOAD_DIR, safe_name)
     content   = await file.read()
@@ -32,12 +37,27 @@ async def upload_pdf(file: UploadFile = File(...), section: str = Form("general"
     except Exception:
         pass
 
+    # Create MongoDB Project
+    from db.mongo import get_projects_collection
+    projects_coll = get_projects_collection()
+    new_project = {
+        "name": project_name,
+        "description": f"Uploaded from {file.filename}",
+        "status": "draft",
+        "source_pdf_path": f"/uploads/pdfs/{safe_name}",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+    result = await projects_coll.insert_one(new_project)
+    project_id = str(result.inserted_id)
+
     doc = PdfDocument(
         filename=safe_name, original_name=file.filename,
         file_path=f"/uploads/pdfs/{safe_name}",
         file_size=file_size, section=section,
         page_count=page_count,
-        uploaded_at=datetime.now().isoformat(),
+        uploaded_at=now.isoformat(),
+        project_id=project_id
     )
     db.add(doc); db.commit(); db.refresh(doc)
     return PdfDocumentOut.model_validate(doc)

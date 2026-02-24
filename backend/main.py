@@ -12,7 +12,7 @@ from db.database import engine, Base, SessionLocal
 from db.mongo import get_client
 from models import sql_models  # Initialize metadata
 from middlewares.cors import add_cors_middleware
-from services.pdf_processing import load_yolo_model, PROC_DIR
+from services.pdf_processing import load_yolo_model, LOCAL_FILE_DB
 
 from routes.budget import router as budget_router
 from routes.pdf import router as pdf_router
@@ -58,7 +58,9 @@ async def lifespan(app: FastAPI):
     # Verify MongoDB connection
     try:
         client = get_client()
-        await client.admin.command("ping")
+        # Use a short timeout for the ping
+        import asyncio
+        await asyncio.wait_for(client.admin.command("ping"), timeout=2.0)
         print("[MongoDB] ✅ Connected to Atlas")
     except Exception as e:
         print(f"[MongoDB] ⚠️  Could not connect: {e}")
@@ -80,14 +82,14 @@ add_cors_middleware(app)
 uploads_path = os.path.join(BASE_DIR, "uploads")
 os.makedirs(uploads_path, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
-app.mount("/local_pdf_processing", StaticFiles(directory=PROC_DIR), name="local_pdf_processing")
+app.mount("/local_file_db", StaticFiles(directory=LOCAL_FILE_DB), name="local_file_db")
 
 # Routers
 app.include_router(budget_router)
 app.include_router(pdf_router)
 app.include_router(floorplan_router)
-app.include_router(sql_projects_router)
 app.include_router(mongo_projects_router)
+app.include_router(sql_projects_router)
 
 @app.get("/health")
 def health():

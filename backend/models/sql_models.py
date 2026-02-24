@@ -27,6 +27,7 @@ class PdfDocument(Base):
     section       = Column(String, default="general")
     page_count    = Column(Integer, nullable=True)
     uploaded_at   = Column(String)
+    project_id    = Column(String, nullable=True)
 
 class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
@@ -40,6 +41,7 @@ class ProcessingJob(Base):
     created_at  = Column(String)
     dpi         = Column(Integer, default=300)
     min_area_pct= Column(Float,  default=5.0)
+    project_id  = Column(String, nullable=True)
 
 class ProjectSql(Base):
     __tablename__ = "projects"

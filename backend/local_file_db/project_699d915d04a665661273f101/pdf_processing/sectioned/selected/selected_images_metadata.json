@@ -1,0 +1,48 @@
+{
+  "project_id": null,
+  "total_selected": 4,
+  "timestamp": "2026-02-24T17:48:53.092982",
+  "dpi": 300,
+  "images": [
+    {
+      "filename": "crop1.a.png",
+      "page_number": 1,
+      "label": "full",
+      "diagram_seq": "a",
+      "sub_index": 0,
+      "original_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/crop1.a.png",
+      "saved_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop1.a.png",
+      "url": "/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop1.a.png"
+    },
+    {
+      "filename": "crop2.a.png",
+      "page_number": 2,
+      "label": "full",
+      "diagram_seq": "a",
+      "sub_index": 0,
+      "original_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/crop2.a.png",
+      "saved_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop2.a.png",
+      "url": "/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop2.a.png"
+    },
+    {
+      "filename": "crop3.a.png",
+      "page_number": 3,
+      "label": "bottom-left",
+      "diagram_seq": "a",
+      "sub_index": 0,
+      "original_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/crop3.a.png",
+      "saved_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop3.a.png",
+      "url": "/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop3.a.png"
+    },
+    {
+      "filename": "crop4.a.png",
+      "page_number": 4,
+      "label": "full",
+      "diagram_seq": "a",
+      "sub_index": 0,
+      "original_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/crop4.a.png",
+      "saved_path": "/Users/consultadd/Desktop/My project/procurement/ReactEditor/proccurement/backend/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop4.a.png",
+      "url": "/local_file_db/project_699d915d04a665661273f101/pdf_processing/sectioned/selected/crop4.a.png"
+    }
+  ]
+}

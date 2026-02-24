@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from db.database import get_db, BASE_DIR
 from models.sql_models import ProjectSql
 from schemas.budget import PageUpdateBody
-from services.pdf_processing import PROC_DIR
+from services.pdf_processing import LOCAL_FILE_DB
 
 router = APIRouter(prefix="/projects", tags=["Projects (SQL)"])
 
@@ -106,7 +106,7 @@ def update_project_pages(project_id: int, body: PageUpdateBody, db: Session = De
         job_dir       = os.path.dirname(sectioned_dir)
         existing_filenames = {img["filename"] for img in images}
 
-        manifest_path = os.path.join(job_dir, "manifest.json")
+        manifest_path = os.path.join(job_dir, "selected_diagram.json")
         manifest_images = []
         if os.path.exists(manifest_path):
             with open(manifest_path) as mf:
@@ -114,7 +114,7 @@ def update_project_pages(project_id: int, body: PageUpdateBody, db: Session = De
             manifest_images = manifest_data.get("images", [])
 
         manifest_lookup = {img["filename"]: img for img in manifest_images}
-        rel_base = job_dir.replace(PROC_DIR, "").lstrip("/\\")
+        rel_base = job_dir.replace(LOCAL_FILE_DB, "").lstrip("/\\")
 
         for fname in body.add_filenames:
             if fname in existing_filenames:
@@ -133,7 +133,7 @@ def update_project_pages(project_id: int, body: PageUpdateBody, db: Session = De
                 "sub_index":     manifest_entry.get("sub_index", 0),
                 "original_path": manifest_entry.get("path", src),
                 "saved_path":    dst,
-                "url":           f"/local_pdf_processing/{rel_base}/sectioned/selected/{fname}",
+                "url":           f"/local_file_db/{rel_base}/sectioned/selected/{fname}",
             })
             existing_filenames.add(fname)
 
@@ -162,14 +162,14 @@ def get_available_pages(project_id: int, db: Session = Depends(get_db)):
     sectioned_dir = os.path.dirname(selected_dir)
     job_dir       = os.path.dirname(sectioned_dir)
 
-    manifest_path = os.path.join(job_dir, "manifest.json")
+    manifest_path = os.path.join(job_dir, "selected_diagram.json")
     if not os.path.exists(manifest_path):
         return {"images": [], "total": 0}
 
     with open(manifest_path) as f:
         manifest_data = json.load(f)
 
-    rel_base = job_dir.replace(PROC_DIR, "").lstrip("/\\")
+    rel_base = job_dir.replace(LOCAL_FILE_DB, "").lstrip("/\\")
     images = []
     for img in manifest_data.get("images", []):
         images.append({
@@ -177,7 +177,7 @@ def get_available_pages(project_id: int, db: Session = Depends(get_db)):
             "page_num":  img["page_num"],
             "label":     img["label"],
             "sub_index": img["sub_index"],
-            "url":       f"/local_pdf_processing/{rel_base}/sectioned/{img['filename']}",
+            "url":       f"/local_file_db/{rel_base}/sectioned/{img['filename']}",
         })
 
     return {"images": images, "total": len(images)}
