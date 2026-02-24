@@ -89,8 +89,8 @@ export function useProjects() {
 
     /** Add / remove pages from a project and update the JSON on disk */
     const updatePages = useCallback(
-        ({ id, add_filenames = [], remove_filenames = [] }) =>
-            dispatch(updateProjectPages({ id, add_filenames, remove_filenames })),
+        ({ id, add_filenames = [], remove_filenames = [], add_metadata = {} }) =>
+            dispatch(updateProjectPages({ id, add_filenames, remove_filenames, add_metadata })),
         [dispatch]
     )
 

@@ -140,6 +140,19 @@ const projectSlice = createSlice({
                 state.pagesUpdating = false
                 const { id, data } = action.payload
                 state.projectPages[id] = data
+
+                // Sync the current project object if it's the one being updated
+                if (state.currentProject && getId(state.currentProject) === id) {
+                    state.currentProject = {
+                        ...state.currentProject,
+                        selected_diagram_metadata: {
+                            ...(state.currentProject.selected_diagram_metadata || {}),
+                            images: data.images,
+                            total: data.total_selected
+                        }
+                    }
+                }
+
                 // Update image count on the project in the list
                 const proj = state.projects.find((p) => getId(p) === id)
                 if (proj) proj.image_count = data.total_selected

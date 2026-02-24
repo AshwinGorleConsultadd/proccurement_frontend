@@ -338,6 +338,72 @@ function UploadZone({ projectId, onUploaded }) {
     )
 }
 
+/* ── Configuration modal for adding pages ────────────────────────────── */
+function AddPagesConfigModal({ filenames, allImages, onConfirm, onCancel, loading }) {
+    const [configs, setConfigs] = useState(() => {
+        const initial = {}
+        filenames.forEach(fn => {
+            const img = allImages.find(i => i.filename === fn)
+            initial[fn] = {
+                page_number: img?.page_num ?? img?.page_number ?? 1,
+                label: img?.label ?? "full"
+            }
+        })
+        return initial
+    })
+
+    const updateConfig = (fn, key, val) => {
+        setConfigs(prev => ({ ...prev, [fn]: { ...prev[fn], [key]: val } }))
+    }
+
+    return (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-background border border-border rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="px-6 py-5 border-b border-border/50 flex items-center justify-between bg-muted/20">
+                    <div>
+                        <h3 className="text-lg font-bold">Configure Registry Metadata</h3>
+                        <p className="text-xs text-muted-foreground">Set page numbers and labels for {filenames.length} images</p>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {filenames.map(fn => (
+                        <div key={fn} className="flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-card/40">
+                            <div className="h-16 w-20 shrink-0 bg-muted rounded-lg overflow-hidden border border-border/40">
+                                <img src={`${BASE}${allImages.find(i => i.filename === fn)?.url}`} className="w-full h-full object-contain" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-mono font-bold truncate mb-3 text-muted-foreground">{fn}</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">Page Number</label>
+                                        <input type="number" value={configs[fn].page_number} onChange={e => updateConfig(fn, "page_number", Number(e.target.value))}
+                                            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:border-violet-400" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">Any (Label/Sequence)</label>
+                                        <input type="text" value={configs[fn].label} onChange={e => updateConfig(fn, "label", e.target.value)}
+                                            className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:border-violet-400" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="px-6 py-4 border-t border-border/50 bg-muted/20 flex items-center justify-end gap-3">
+                    <Button variant="ghost" onClick={onCancel} disabled={loading}>Cancel</Button>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                        onClick={() => onConfirm(configs)} disabled={loading}>
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        Finalize & Add to Project
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    SOURCE TAB  (formerly "Editor")
    – Saved Pages / Add Pages sub-tabs
@@ -346,12 +412,13 @@ function UploadZone({ projectId, onUploaded }) {
 ══════════════════════════════════════════════════════════════════════════ */
 function SourceTab({ project }) {
     const { availablePages, availableLoading, loadOne,
-        loadAvailablePages, clearPages, downloadMetadata } = useProjects()
+        loadAvailablePages, clearPages, downloadMetadata, updatePages, pagesUpdating } = useProjects()
 
     const [subTab, setSubTab] = useState("saved")
     const [marked, setMarked] = useState({})
     const [downloadingId, setDownloadingId] = useState(null)
     const [lightbox, setLightbox] = useState(null)
+    const [configuringAdd, setConfiguringAdd] = useState(null)
 
     const id = project._id ?? project.id
 
@@ -401,6 +468,22 @@ function SourceTab({ project }) {
                     onClose={() => setLightbox(null)} />
             )}
 
+            {/* Config Modal */}
+            {configuringAdd && (
+                <AddPagesConfigModal
+                    filenames={configuringAdd}
+                    allImages={allImages}
+                    loading={pagesUpdating}
+                    onCancel={() => setConfiguringAdd(null)}
+                    onConfirm={async (metadata) => {
+                        await updatePages({ id, add_filenames: configuringAdd, add_metadata: metadata })
+                        setMarked({})
+                        setConfiguringAdd(null)
+                        loadAvailablePages(id)
+                    }}
+                />
+            )}
+
             {/* Sub-tab bar */}
             <div className="flex items-center gap-3 px-6 py-3.5 border-b border-border/50 shrink-0 bg-background">
                 <div className="flex items-center gap-1 bg-muted/60 rounded-xl p-1">
@@ -435,6 +518,33 @@ function SourceTab({ project }) {
                         </>
                     )}
                     <div className="w-px h-5 bg-border/60 mx-1" />
+
+                    {hasMarked && (
+                        <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-right-4">
+                            {subTab === "saved" ? (
+                                <Button size="sm" variant="destructive"
+                                    className="h-8 text-xs gap-1.5 shadow-sm shadow-red-500/20"
+                                    disabled={pagesUpdating}
+                                    onClick={async () => {
+                                        await updatePages({ id, remove_filenames: markedList })
+                                        setMarked({})
+                                        loadAvailablePages(id)
+                                    }}>
+                                    {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                    Remove from Saved
+                                </Button>
+                            ) : (
+                                <Button size="sm"
+                                    className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-500/20"
+                                    disabled={pagesUpdating}
+                                    onClick={() => setConfiguringAdd(markedList)}>
+                                    {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                    Add to Project
+                                </Button>
+                            )}
+                        </div>
+                    )}
+
                     <Button size="sm" variant="outline"
                         className="h-8 text-xs gap-1.5 border-violet-500/25 text-violet-500 hover:bg-violet-500/10 ml-1"
                         disabled={downloadingId === id} onClick={handleDownload}>

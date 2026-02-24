@@ -87,11 +87,12 @@ export const fetchAvailablePages = createAsyncThunk(
 
 export const updateProjectPages = createAsyncThunk(
     'projects/updateProjectPages',
-    async ({ id, add_filenames = [], remove_filenames = [] }, { rejectWithValue }) => {
+    async ({ id, add_filenames = [], remove_filenames = [], add_metadata = {} }, { rejectWithValue }) => {
         try {
             const res = await api.patch(`/projects/${id}/pages`, {
                 add_filenames,
                 remove_filenames,
+                add_metadata,
             })
             return { id, data: res.data }
         } catch (err) {

@@ -29,3 +29,11 @@ backend/.env
 *.env
 .png
 *.png
+__pycache__/
+*.py[cod]
+*$py.class
+local_file_db/
+backend/uploads/
+*.js.bak
+* 2.js
+* 2.py

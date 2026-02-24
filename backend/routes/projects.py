@@ -188,8 +188,12 @@ async def update_project_saved_pages(project_id: str, body: dict):
         
     # Handle additions
     if add_list:
+        add_metadata = body.get("add_metadata", {}) # { filename: { page_number, label } }
         # Load the processing manifest to get data for these files
         manifest_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", "sectioned_diagram_registry.json")
+        final_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "final")
+        os.makedirs(final_dir, exist_ok=True)
+
         if os.path.exists(manifest_path):
             with open(manifest_path) as f:
                 manifest_data = json.load(f)
@@ -200,12 +204,29 @@ async def update_project_saved_pages(project_id: str, body: dict):
                 if fname in existing_fnames: continue
                 if fname in manifest_images:
                     m_img = manifest_images[fname]
+                    
+                    # Use provided metadata or fall back to manifest
+                    custom = add_metadata.get(fname, {})
+                    p_num = custom.get("page_number") or custom.get("page_num") or m_img.get("page_num", 0)
+                    lbl = custom.get("label") or m_img.get("label", "full")
+                    
+                    # Canonical Filename: {project_id}_{page}_{label}.png
+                    sanitized_lbl = "".join(x for x in str(lbl) if x.isalnum() or x in "._-").strip() or "full"
+                    new_filename = f"{project_id}_{p_num}_{sanitized_lbl}.png"
+                    
+                    # Copy from sectioned to final
+                    src_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", "sectioned", fname)
+                    dest_path = os.path.join(final_dir, new_filename)
+                    if os.path.exists(src_path):
+                        shutil.copy2(src_path, dest_path)
+
                     images.append({
-                        "filename": fname,
-                        "page_number": m_img.get("page_num", 0),
-                        "label": m_img.get("label", "full"),
-                        "sub_index": m_img.get("sub_index", 0),
-                        "url": f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{fname}"
+                        "filename": new_filename,
+                        "page_number": int(p_num),
+                        "label": lbl,
+                        "diagram_seq": sanitized_lbl,
+                        "url": f"/local_file_db/project_{project_id}/final/{new_filename}",
+                        "source": "sectioned"
                     })
 
     # Update MongoDB
@@ -214,6 +235,27 @@ async def update_project_saved_pages(project_id: str, body: dict):
     metadata["updated_at"] = datetime.utcnow().isoformat()
     
     await project_service.update_project(project_id, {"selected_diagram_metadata": metadata})
+
+    # ALSO update selected_image_registry.json on disk to stay in sync
+    project_folder = os.path.join(LOCAL_FILE_DB, f"project_{project_id}")
+    reg_path = os.path.join(project_folder, "selected_image_registry.json")
+    if os.path.exists(project_folder):
+        try:
+            # We wrap it in a full registry object if it doesn't exist or just overwrite
+            # Usually attach_metadata created this. We'll update it.
+            reg_data = {"images": images, "total": len(images), "project_id": project_id, "updated_at": metadata["updated_at"]}
+            if os.path.exists(reg_path):
+                with open(reg_path, "r") as f:
+                    try:
+                        old_reg = json.load(f)
+                        reg_data = {**old_reg, **reg_data}
+                    except: pass
+            
+            with open(reg_path, "w") as f:
+                json.dump(reg_data, f, indent=2)
+        except Exception as e:
+            print(f"[update_project_saved_pages] ⚠️ Failed to update JSON registry: {e}")
+
     return {"images": images, "total_selected": len(images)}
 
 
@@ -229,7 +271,9 @@ async def upload_image_to_mongo_project(
     upload_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     
-    filename = f"upload_{int(datetime.now().timestamp())}_{file.filename}"
+    # Use canonical naming: {project_id}_{page}_{label}.png
+    sanitized_label = "".join(x for x in label if x.isalnum() or x in "._-").strip() or "UPLOAD"
+    filename = f"{project_id}_{page_number}_{sanitized_label}.png"
     file_path = os.path.join(upload_dir, filename)
     
     content = await file.read()
@@ -242,14 +286,37 @@ async def upload_image_to_mongo_project(
         "url": url,
         "page_number": page_number,
         "label": label,
-        "source": "uploaded"
+        "source": "uploaded",
+        "diagram_seq": sanitized_label
     }
     
     # Update project in Mongo
     col = get_projects_collection()
     await col.update_one(
         {"_id": ObjectId(project_id)},
-        {"$push": {"selected_diagram_metadata.images": new_img}}
+        {
+            "$push": {"selected_diagram_metadata.images": new_img},
+            "$inc": {"selected_diagram_metadata.total": 1},
+            "$set": {"updated_at": datetime.utcnow().isoformat()}
+        }
     )
+
+    # Update JSON registry on disk
+    project_folder = os.path.join(LOCAL_FILE_DB, f"project_{project_id}")
+    reg_path = os.path.join(project_folder, "selected_image_registry.json")
+    if os.path.exists(project_folder) and os.path.exists(reg_path):
+        try:
+            with open(reg_path, "r") as f:
+                reg_data = json.load(f)
+            
+            if "images" not in reg_data: reg_data["images"] = []
+            reg_data["images"].append(new_img)
+            reg_data["total"] = len(reg_data["images"])
+            reg_data["updated_at"] = datetime.utcnow().isoformat()
+
+            with open(reg_path, "w") as f:
+                json.dump(reg_data, f, indent=2)
+        except Exception as e:
+            print(f"[upload_image] ⚠️ Failed to update JSON registry: {e}")
     
     return {"ok": True, "image": new_img}
