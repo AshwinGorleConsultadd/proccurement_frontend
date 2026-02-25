@@ -94,7 +94,8 @@ export const updateProjectPages = createAsyncThunk(
                 remove_filenames,
                 add_metadata,
             })
-            return { id, data: res.data }
+            // Echo back add/remove lists so the slice can do optimistic local updates
+            return { id, data: res.data, add_filenames, remove_filenames }
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)
         }

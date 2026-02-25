@@ -117,16 +117,32 @@ function Lightbox({ images, startIndex, onClose }) {
 /* ══════════════════════════════════════════════════════════════════════════
    THUMB CARD — single image tile
    • single-click  → toggle select
-   • double-click  → open lightbox
+   • double-click  → open lightbox (does NOT affect selection)
 ══════════════════════════════════════════════════════════════════════════ */
 function ThumbCard({ img, mode, checked, onToggle, onDoubleClick }) {
     const [err, setErr] = useState(false)
+    const clickTimerRef = useRef(null)
     const url = `${BASE}${img.url}`
+
+    // Disambiguate single vs double click so double-click never toggles selection
+    const handleClick = (e) => {
+        e.stopPropagation()
+        if (clickTimerRef.current) {
+            // Second click arrived quickly → it's a double-click, cancel the pending single-click
+            clearTimeout(clickTimerRef.current)
+            clickTimerRef.current = null
+            onDoubleClick?.()
+        } else {
+            clickTimerRef.current = setTimeout(() => {
+                clickTimerRef.current = null
+                onToggle()
+            }, 220)
+        }
+    }
 
     return (
         <div
-            onClick={onToggle}
-            onDoubleClick={(e) => { e.preventDefault(); onDoubleClick?.() }}
+            onClick={handleClick}
             title={`${img.filename}\n(double-click to view full size)`}
             className={`relative group cursor-pointer rounded-xl overflow-hidden transition-all duration-200 border-2 select-none flex flex-col
                 ${checked
@@ -250,7 +266,6 @@ function PageGroup({ page, images, mode, checked, onToggle, onImageDoubleClick }
 function UploadZone({ projectId, onUploaded }) {
     const [dragging, setDragging] = useState(false)
     const [uploading, setUploading] = useState(false)
-    const [pageNum, setPageNum] = useState(1)
     const fileRef = useRef(null)
     const [error, setError] = useState("")
 
@@ -263,8 +278,8 @@ function UploadZone({ projectId, onUploaded }) {
             if (!file.type.startsWith("image/")) continue
             const fd = new FormData()
             fd.append("file", file)
-            fd.append("page_number", pageNum)
-            fd.append("label", "UPLOADED")
+            fd.append("page_number", 1)   // default; user configures in the Add-to-Project modal
+            fd.append("label", "a")
             try {
                 const res = await fetch(`${BASE}/projects/${projectId}/upload-image`, { method: "POST", body: fd })
                 if (!res.ok) throw new Error(await res.text())
@@ -290,18 +305,10 @@ function UploadZone({ projectId, onUploaded }) {
                 </div>
                 <div>
                     <p className="text-sm font-semibold">Upload from your computer</p>
-                    <p className="text-xs text-muted-foreground">Drag &amp; drop or click to browse — PNG, JPG, WEBP</p>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground font-medium">Page&nbsp;</label>
-                    <input
-                        type="number" min={1} value={pageNum}
-                        onChange={e => setPageNum(Number(e.target.value) || 1)}
-                        className="w-16 text-xs text-center rounded-lg border border-border bg-background px-2 py-1 focus:outline-none focus:border-violet-400/60"
-                    />
+                    <p className="text-xs text-muted-foreground">Drag &amp; drop or click to browse — then select &amp; click <strong>Add to Project</strong> to configure &amp; save</p>
                 </div>
                 <Button size="sm" variant="outline"
-                    className="h-8 text-xs gap-1.5 border-violet-500/25 text-violet-500 hover:bg-violet-500/10"
+                    className="ml-auto h-8 text-xs gap-1.5 border-violet-500/25 text-violet-500 hover:bg-violet-500/10"
                     disabled={uploading}
                     onClick={() => fileRef.current?.click()}>
                     {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -346,7 +353,7 @@ function AddPagesConfigModal({ filenames, allImages, onConfirm, onCancel, loadin
             const img = allImages.find(i => i.filename === fn)
             initial[fn] = {
                 page_number: img?.page_num ?? img?.page_number ?? 1,
-                label: img?.label ?? "full"
+                label: "a"   // default label is always "a"
             }
         })
         return initial
@@ -381,8 +388,9 @@ function AddPagesConfigModal({ filenames, allImages, onConfirm, onCancel, loadin
                                             className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:border-violet-400" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">Any (Label/Sequence)</label>
+                                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">Label</label>
                                         <input type="text" value={configs[fn].label} onChange={e => updateConfig(fn, "label", e.target.value)}
+                                            placeholder="e.g. a, b, floor1"
                                             className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:border-violet-400" />
                                     </div>
                                 </div>
@@ -431,12 +439,19 @@ function SourceTab({ project }) {
     useEffect(() => { return () => clearPages(id) }, [id, clearPages])
     useEffect(() => { setMarked({}) }, [subTab])
 
-    const toggleMark = (fn) => setMarked(prev => ({ ...prev, [fn]: !prev[fn] }))
+    const toggleMark = useCallback((fn) => setMarked(prev => ({ ...prev, [fn]: !prev[fn] })), [])
     const markedList = Object.entries(marked).filter(([, v]) => v).map(([k]) => k)
     const hasMarked = markedList.length > 0
     const allImages = allData?.images ?? []
     const savedFilenames = useMemo(() => new Set(savedImages.map(i => i.filename)), [savedImages])
-    const addableImages = useMemo(() => allImages.filter(img => !savedFilenames.has(img.filename)), [allImages, savedFilenames])
+    // Also exclude images that have already been added (tracked by source_filename on the saved entry)
+    const savedSourceFilenames = useMemo(() => new Set(
+        savedImages.map(i => i.source_filename).filter(Boolean)
+    ), [savedImages])
+    const addableImages = useMemo(() =>
+        allImages.filter(img => !savedFilenames.has(img.filename) && !savedSourceFilenames.has(img.filename)),
+        [allImages, savedFilenames, savedSourceFilenames]
+    )
 
     function groupByPage(images) {
         const acc = {}
@@ -476,10 +491,11 @@ function SourceTab({ project }) {
                     loading={pagesUpdating}
                     onCancel={() => setConfiguringAdd(null)}
                     onConfirm={async (metadata) => {
-                        await updatePages({ id, add_filenames: configuringAdd, add_metadata: metadata })
+                        const result = await updatePages({ id, add_filenames: configuringAdd, add_metadata: metadata })
+                        // Redux slice optimistically removes added images from availablePages
+                        // and updates currentProject.selected_diagram_metadata instantly
                         setMarked({})
                         setConfiguringAdd(null)
-                        loadAvailablePages(id)
                     }}
                 />
             )}
@@ -528,7 +544,8 @@ function SourceTab({ project }) {
                                     onClick={async () => {
                                         await updatePages({ id, remove_filenames: markedList })
                                         setMarked({})
-                                        loadAvailablePages(id)
+                                        // Redux slice optimistically updates availablePages + currentProject
+                                        // No need to refetch from backend
                                     }}>
                                     {pagesUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                     Remove from Saved

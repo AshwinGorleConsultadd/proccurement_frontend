@@ -61,7 +61,8 @@ async def get_project_by_id(project_id: str) -> dict | None:
 
 
 async def update_project(project_id: str, updates: dict) -> dict | None:
-    """Apply a partial update dict to a project. Always sets updated_at."""
+    """Apply a partial update dict to a project. Always sets updated_at.
+    Uses upsert=True so the document is created if it doesn't exist yet."""
     col = get_projects_collection()
     if not ObjectId.is_valid(project_id):
         return None
@@ -70,6 +71,7 @@ async def update_project(project_id: str, updates: dict) -> dict | None:
     await col.update_one(
         {"_id": ObjectId(project_id)},
         {"$set": updates},
+        upsert=True,   # ← create the document if it doesn't exist
     )
     return await get_project_by_id(project_id)
 

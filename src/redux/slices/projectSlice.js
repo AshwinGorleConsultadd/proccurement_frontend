@@ -138,7 +138,8 @@ const projectSlice = createSlice({
             })
             .addCase(updateProjectPages.fulfilled, (state, action) => {
                 state.pagesUpdating = false
-                const { id, data } = action.payload
+                const { id, data, add_filenames = [], remove_filenames = [] } = action.payload
+                // data contains the full updated page list from backend
                 state.projectPages[id] = data
 
                 // Sync the current project object if it's the one being updated
@@ -151,6 +152,16 @@ const projectSlice = createSlice({
                             total: data.total_selected
                         }
                     }
+                }
+
+                // Optimistically update availablePages cache:
+                // — remove newly-added images from available list (no backend refetch needed)
+                if (state.availablePages[id] && add_filenames.length > 0) {
+                    const addedSet = new Set(add_filenames)
+                    const avail = (state.availablePages[id].images || []).filter(
+                        img => !addedSet.has(img.filename)
+                    )
+                    state.availablePages[id] = { ...state.availablePages[id], images: avail }
                 }
 
                 // Update image count on the project in the list
