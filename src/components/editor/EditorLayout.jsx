@@ -11,8 +11,11 @@ import AssignDrawnMaskDialog from "./AssignDrawnMaskDialog";
 export default function EditorLayout() {
   // ─── Core state ────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState(() => {
+    const saved = localStorage.getItem("editor_groups");
+    const baseGroups = saved ? JSON.parse(saved) : editorData.groups;
+
     const initializedGroups = {};
-    for (const [key, group] of Object.entries(editorData.groups)) {
+    for (const [key, group] of Object.entries(baseGroups)) {
       initializedGroups[key] = {
         ...group,
         type: group.type || "FF&E",
@@ -20,7 +23,11 @@ export default function EditorLayout() {
     }
     return initializedGroups;
   });
-  const [masks, setMasks] = useState(editorData.masks);
+
+  const [masks, setMasks] = useState(() => {
+    const saved = localStorage.getItem("editor_masks");
+    return saved ? JSON.parse(saved) : editorData.masks;
+  });
   const [selectedMaskIds, setSelectedMaskIds] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [editorMode, setEditorMode] = useState("all");
@@ -39,11 +46,10 @@ export default function EditorLayout() {
   // ─── Drawing mode state ────────────────────────────────────────────────────
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [pendingMaskPolygons, setPendingMaskPolygons] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'saved'
 
   // ─── Undo / Redo ──────────────────────────────────────────────────────────
-  const [history, setHistory] = useState([
-    { masks: editorData.masks, groups: editorData.groups },
-  ]);
+  const [history, setHistory] = useState([{ masks, groups }]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const pushToHistory = (newMasks, newGroups) => {
@@ -87,6 +93,16 @@ export default function EditorLayout() {
         redo();
       }
 
+      // Cmd+S / Ctrl+S to save to local storage
+      if (ctrlKey && e.key === "s") {
+        e.preventDefault();
+        localStorage.setItem("editor_groups", JSON.stringify(groups));
+        localStorage.setItem("editor_masks", JSON.stringify(masks));
+        console.log("State saved to local storage");
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus(null), 2000);
+      }
+
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         selectedMaskIds.length > 0
@@ -97,7 +113,7 @@ export default function EditorLayout() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [historyIndex, history, selectedMaskIds]);
+  }, [historyIndex, history, selectedMaskIds, groups, masks]);
 
   // ─── Selection helpers ────────────────────────────────────────────────────
   /**
@@ -356,6 +372,25 @@ export default function EditorLayout() {
           onAssign={handleAssignDrawnMask}
           groups={groups}
         />
+      )}
+
+      {/* ── Save Notification ────────────────────────────────────────────── */}
+      {saveStatus === "saved" && (
+        <div className="absolute bottom-6 right-6 z-[100] bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span className="text-sm font-medium">Saved to local storage</span>
+        </div>
       )}
     </div>
   );

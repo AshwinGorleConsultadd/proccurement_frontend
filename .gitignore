@@ -29,3 +29,6 @@ backend/.env
 *.env
 .png
 *.png
+
+
+local_file_db
