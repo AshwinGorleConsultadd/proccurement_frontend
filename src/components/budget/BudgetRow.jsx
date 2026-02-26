@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react"
-import { Eye, EyeOff, Plus, Trash2 } from "lucide-react"
+import { Eye, EyeOff, Plus, Trash2, TrendingDown, TrendingUp } from "lucide-react"
 import { Button } from "../ui/button"
 import {
     DropdownMenu,
@@ -27,6 +27,7 @@ export function BudgetRow({
     onCancel,
     onDelete,
     onInsert,
+    onToggleHide,
 }) {
     const [localItem, setLocalItem] = useState({ ...item })
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -74,9 +75,11 @@ export function BudgetRow({
         }
     }
 
+    const isHidden = item.hidden_from_total
+
     return (
         <>
-            <tr className={`border-b transition-colors hover:bg-muted/50 ${isEditing ? "bg-muted/30 ring-1 ring-inset ring-muted-foreground/20" : ""}`}>
+            <tr className={`border-b transition-colors hover:bg-muted/50 ${isEditing ? "bg-muted/30 ring-1 ring-inset ring-muted-foreground/20" : ""} ${isHidden ? "opacity-60" : ""}`}>
                 {/* Spec No */}
                 <td className="p-2 align-middle font-medium w-[100px]">
                     {isEditing ? (
@@ -202,13 +205,16 @@ export function BudgetRow({
                             className="h-8 text-right"
                         />
                     ) : (
-                        formatCurrency(item.extended)
+                        <span className={isHidden ? "line-through text-muted-foreground" : ""}>
+                            {formatCurrency(item.extended)}
+                        </span>
                     )}
                 </td>
 
                 {/* Actions */}
-                <td className="p-2 align-middle w-[120px]">
+                <td className="p-2 align-middle w-[150px]">
                     <div className="flex items-center gap-1 justify-end">
+                        {/* Edit / Save toggle */}
                         <Button
                             variant="ghost"
                             size="icon"
@@ -217,6 +223,23 @@ export function BudgetRow({
                             title={isEditing ? "Save changes" : "Edit row"}
                         >
                             {isEditing ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+
+                        {/* Hide from totals toggle */}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 ${isHidden
+                                ? "text-amber-500 hover:text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/20"
+                                : "text-muted-foreground hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10"
+                                }`}
+                            onClick={() => onToggleHide(item.id, !isHidden)}
+                            title={isHidden ? "Include in totals" : "Exclude from totals"}
+                        >
+                            {isHidden
+                                ? <TrendingDown className="h-4 w-4" />
+                                : <TrendingUp className="h-4 w-4" />
+                            }
                         </Button>
 
                         <DropdownMenu>

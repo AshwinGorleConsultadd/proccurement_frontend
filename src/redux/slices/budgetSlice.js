@@ -12,6 +12,7 @@ const initialState = {
     page: 1,
     pageSize: 12,
     totalSubtotal: 0,
+    roomTotals: {},
     loading: false,
     error: null,
     editingRowId: null,
@@ -67,6 +68,7 @@ const budgetSlice = createSlice({
                 state.page = action.payload.page
                 state.pageSize = action.payload.page_size
                 state.totalSubtotal = action.payload.total_subtotal
+                state.roomTotals = action.payload.room_totals || {}
             })
             .addCase(fetchBudgetItems.rejected, (state, action) => {
                 state.loading = false

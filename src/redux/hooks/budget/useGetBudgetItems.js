@@ -4,7 +4,7 @@ import { fetchBudgetItems } from '../../actions/budget/budgetActions'
 
 export function useGetBudgetItems() {
     const dispatch = useDispatch()
-    const { items, total, page, pageSize, totalSubtotal, loading, error, search, groupByPage, groupByRoom, section } =
+    const { items, total, page, pageSize, totalSubtotal, roomTotals, loading, error, search, groupByPage, groupByRoom, section } =
         useSelector((state) => state.budget)
 
     const fetch = useCallback(() => {
@@ -15,5 +15,5 @@ export function useGetBudgetItems() {
         fetch()
     }, [fetch])
 
-    return { items, total, page, pageSize, totalSubtotal, loading, error, refetch: fetch }
+    return { items, total, page, pageSize, totalSubtotal, roomTotals, loading, error, refetch: fetch }
 }

@@ -27,6 +27,7 @@ class BudgetItemUpdate(BaseModel):
     unit_cost:          Optional[float] = None
     extended:           Optional[float] = None
     pdf_filename:       Optional[str]   = None
+    hidden_from_total:  Optional[bool]  = None
 
 class BudgetItemOut(BaseModel):
     id:                 int
@@ -42,6 +43,7 @@ class BudgetItemOut(BaseModel):
     section:            str
     order_index:        int
     pdf_filename:       Optional[str]   = None
+    hidden_from_total:  bool            = False
     class Config:
         from_attributes = True
 

@@ -7,6 +7,42 @@ import re
 
 router = APIRouter(prefix="/budget", tags=["Budget"])
 
+@router.get("/{section}/export")
+def export_budget(
+    section:       str,
+    group_by_room: bool = Query(False),
+    group_by_page: bool = Query(False),
+    db: Session = Depends(get_db)
+):
+    """Return ALL items for a section (no pagination) for client-side export."""
+    q = db.query(BudgetItem).filter(BudgetItem.section == section)
+    all_items = q.all()
+
+    # Sort
+    if group_by_page:
+        all_items = sorted(all_items, key=lambda i: (i.page_no or 0, i.order_index))
+    elif group_by_room:
+        all_items = sorted(all_items, key=lambda i: (i.room_name or "", i.order_index))
+    else:
+        all_items = sorted(all_items, key=lambda i: i.order_index)
+
+    grand_total = sum((i.extended or 0) for i in all_items if not i.hidden_from_total)
+
+    room_totals: dict[str, float] = {}
+    for i in all_items:
+        key = i.room_name or "Unassigned Room"
+        room_totals[key] = room_totals.get(key, 0.0) + (
+            (i.extended or 0) if not i.hidden_from_total else 0.0
+        )
+
+    return {
+        "items":       [BudgetItemOut.model_validate(i) for i in all_items],
+        "grand_total": grand_total,
+        "room_totals": room_totals,
+        "section":     section,
+    }
+
+
 @router.get("/{section}")
 def get_budget(
     section:       str,
@@ -19,8 +55,21 @@ def get_budget(
     q = db.query(BudgetItem).filter(BudgetItem.section == section)
     if search:
         q = q.filter(BudgetItem.spec_no.ilike(f"%{search}%"))
-    total          = q.count()
-    total_subtotal = sum(i.extended or 0 for i in q.all())
+    total = q.count()
+    # Only sum items that are NOT hidden from total
+    all_items = q.all()
+    total_subtotal = sum(
+        (i.extended or 0) for i in all_items if not i.hidden_from_total
+    )
+
+    # Build per-room totals (only non-hidden items, across all pages)
+    room_totals: dict[str, float] = {}
+    for i in all_items:
+        key = i.room_name or "Unassigned Room"
+        room_totals[key] = room_totals.get(key, 0.0) + (
+            (i.extended or 0) if not i.hidden_from_total else 0.0
+        )
+
     if group_by_page:
         q = q.order_by(BudgetItem.page_no, BudgetItem.order_index)
     elif group_by_room:
@@ -35,6 +84,7 @@ def get_budget(
         "page":           page,
         "page_size":      page_size,
         "total_subtotal": total_subtotal,
+        "room_totals":    room_totals,
     }
 
 @router.post("/item")

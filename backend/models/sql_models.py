@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, Boolean
 from db.database import Base
 
 class BudgetItem(Base):
@@ -16,6 +16,7 @@ class BudgetItem(Base):
     section           = Column(String,  default="general")
     order_index       = Column(Integer, index=True, default=0)
     pdf_filename      = Column(String,  nullable=True)
+    hidden_from_total = Column(Boolean,  default=False, nullable=False, server_default='0')
 
 class PdfDocument(Base):
     __tablename__ = "pdf_documents"

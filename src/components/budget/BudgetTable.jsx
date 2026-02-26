@@ -1,5 +1,5 @@
 
-import { useEffect, Fragment } from "react"
+import { useEffect, Fragment, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import {
     Table,
@@ -12,7 +12,13 @@ import {
 import { Button } from "../ui/button"
 import { Switch } from "../ui/switch"
 import { Badge } from "../ui/badge"
-import { Loader2 } from "lucide-react"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../ui/dropdown-menu"
+import { Loader2, Download, FileSpreadsheet, FileText } from "lucide-react"
 
 import { useGetBudgetItems } from "../../redux/hooks/budget/useGetBudgetItems"
 import { useCreateBudgetItem } from "../../redux/hooks/budget/useCreateBudgetItem"
@@ -31,15 +37,32 @@ import { BudgetRow } from "./BudgetRow"
 import { PaginationControls } from "./PaginationControls"
 import { SearchInput } from "./SearchInput"
 import { formatCurrency } from "../../lib/utils"
+import { exportToExcel, exportToPdf } from "./exportBudget"
 
 export function BudgetTable() {
     const dispatch = useDispatch()
-    const { items, total, page, pageSize, totalSubtotal, loading, error, refetch } = useGetBudgetItems()
+    const { items, total, page, pageSize, totalSubtotal, roomTotals, loading, error, refetch } = useGetBudgetItems()
     const { create } = useCreateBudgetItem()
     const { update } = useUpdateBudgetItem()
     const { remove } = useDeleteBudgetItem()
 
     const { editingRowId, search, groupByPage, groupByRoom, section } = useSelector((state) => state.budget)
+    const [exporting, setExporting] = useState(null) // 'excel' | 'pdf' | null
+
+    const handleExport = async (format) => {
+        setExporting(format)
+        try {
+            if (format === "excel") {
+                await exportToExcel(section, groupByRoom, groupByPage)
+            } else {
+                await exportToPdf(section, groupByRoom, groupByPage)
+            }
+        } catch (e) {
+            console.error("Export failed:", e)
+        } finally {
+            setExporting(null)
+        }
+    }
 
     // Handlers
     const handleStartEdit = (id) => {
@@ -51,8 +74,6 @@ export function BudgetTable() {
         const { id: _id, section: _section, order_index: _oi, ...updateData } = data
         await update(id, updateData)
         dispatch(setEditingRowId(null))
-        // Re-fetch so updated values are reflected (the extraReducer updates in place
-        // but re-fetching guarantees consistency with backend state)
         refetch()
     }
 
@@ -77,6 +98,11 @@ export function BudgetTable() {
         }
     }
 
+    const handleToggleHide = async (id, hidden) => {
+        await update(id, { hidden_from_total: hidden })
+        refetch()
+    }
+
     const handleSearchChange = (val) => {
         dispatch(setSearch(val))
     }
@@ -93,31 +119,97 @@ export function BudgetTable() {
         dispatch(setGroupByRoom(checked))
     }
 
-    // Group Header Rendering Helper
-    const renderGroupHeader = (item, prevItem) => {
-        if (groupByPage) {
-            if (!prevItem || item.page_no !== prevItem.page_no) {
-                return (
-                    <TableRow className="bg-muted/80 hover:bg-muted/80">
-                        <TableCell colSpan={10} className="font-bold py-1">
-                            Page {item.page_no || "Unassigned"}
+    // Build rendered rows with group headers and per-room subtotal rows
+    const buildRows = () => {
+        const rows = []
+        let prevItem = null
+
+        items.forEach((item, index) => {
+            // Emit group header if the grouping key changed
+            if (groupByPage) {
+                if (!prevItem || item.page_no !== prevItem.page_no) {
+                    rows.push(
+                        <TableRow key={`group-page-${item.page_no}-${index}`} className="bg-muted/50 hover:bg-muted/50">
+                            <TableCell colSpan={10} className="font-semibold py-2 pl-4 text-primary">
+                                Page {item.page_no !== null ? item.page_no : "Unassigned"}
+                            </TableCell>
+                        </TableRow>
+                    )
+                }
+            } else if (groupByRoom) {
+                const currentRoom = item.room_name || "Unassigned Room"
+                const prevRoom = prevItem ? (prevItem.room_name || "Unassigned Room") : null
+
+                // Before new room group: if there was a previous room, emit its subtotal row
+                if (prevItem && currentRoom !== prevRoom) {
+                    const prevTotal = roomTotals[prevRoom] ?? 0
+                    rows.push(
+                        <TableRow
+                            key={`room-subtotal-${prevRoom}-${index}`}
+                            className="bg-primary/5 hover:bg-primary/5 border-t border-primary/20"
+                        >
+                            <TableCell colSpan={8} className="py-2 pl-4 text-sm font-medium text-muted-foreground italic">
+                                {prevRoom} — Merchandise Total
+                            </TableCell>
+                            <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
+                                {formatCurrency(prevTotal)}
+                            </TableCell>
+                            <TableCell />
+                        </TableRow>
+                    )
+                }
+
+                // Emit room header row
+                if (!prevItem || currentRoom !== prevRoom) {
+                    rows.push(
+                        <TableRow key={`group-room-${currentRoom}-${index}`} className="bg-muted/50 hover:bg-muted/50">
+                            <TableCell colSpan={10} className="font-semibold py-2 pl-4 text-primary">
+                                {currentRoom}
+                            </TableCell>
+                        </TableRow>
+                    )
+                }
+            }
+
+            rows.push(
+                <Fragment key={item.id}>
+                    <BudgetRow
+                        item={item}
+                        isEditing={editingRowId === item.id}
+                        onStartEdit={handleStartEdit}
+                        onSave={handleSave}
+                        onCancel={handleCancel}
+                        onDelete={handleDelete}
+                        onInsert={handleInsert}
+                        onToggleHide={handleToggleHide}
+                    />
+                </Fragment>
+            )
+
+            prevItem = item
+
+            // After last item, if grouping by room, emit the final room's subtotal
+            if (groupByRoom && index === items.length - 1) {
+                const lastRoom = item.room_name || "Unassigned Room"
+                const lastTotal = roomTotals[lastRoom] ?? 0
+                rows.push(
+                    <TableRow
+                        key={`room-subtotal-${lastRoom}-end`}
+                        className="bg-primary/5 hover:bg-primary/5 border-t border-primary/20"
+                    >
+                        <TableCell colSpan={8} className="py-2 pl-4 text-sm font-medium text-muted-foreground italic">
+                            {lastRoom} — Merchandise Total
                         </TableCell>
+                        <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
+                            {formatCurrency(lastTotal)}
+                        </TableCell>
+                        <TableCell />
                     </TableRow>
                 )
             }
-        }
-        if (groupByRoom) {
-            if (!prevItem || item.room_name !== prevItem.room_name) {
-                return (
-                    <TableRow className="bg-muted/80 hover:bg-muted/80">
-                        <TableCell colSpan={10} className="font-bold py-1">
-                            {item.room_name || "Unassigned Room"}
-                        </TableCell>
-                    </TableRow>
-                )
-            }
-        }
-        return null
+        })
+
+        return rows
     }
 
     return (
@@ -148,9 +240,53 @@ export function BudgetTable() {
                         </label>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">Total Budget:</span>
-                    <span className="text-xl font-bold">{formatCurrency(totalSubtotal)}</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-muted-foreground">Total Budget:</span>
+                        <span className="text-xl font-bold">{formatCurrency(totalSubtotal)}</span>
+                    </div>
+                    <div className="h-6 w-px bg-border" />
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 text-xs border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40"
+                                disabled={exporting != null || loading}
+                            >
+                                {exporting ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Download className="h-3.5 w-3.5" />
+                                )}
+                                Export
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem
+                                onSelect={(e) => {
+                                    e.preventDefault()
+                                    handleExport("excel")
+                                }}
+                                className="gap-2 cursor-pointer"
+                            >
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                                <span>Export as Excel</span>
+                                {exporting === "excel" && <Loader2 className="h-3 w-3 ml-auto animate-spin" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={(e) => {
+                                    e.preventDefault()
+                                    handleExport("pdf")
+                                }}
+                                className="gap-2 cursor-pointer"
+                            >
+                                <FileText className="h-4 w-4 text-red-500" />
+                                <span>Export as PDF</span>
+                                {exporting === "pdf" && <Loader2 className="h-3 w-3 ml-auto animate-spin" />}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
@@ -174,7 +310,7 @@ export function BudgetTable() {
                             <TableHead className="w-[80px]">Qty</TableHead>
                             <TableHead className="w-[100px] text-right">Unit Cost</TableHead>
                             <TableHead className="w-[100px] text-right">Extended</TableHead>
-                            <TableHead className="w-[120px] text-right">Actions</TableHead>
+                            <TableHead className="w-[150px] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -186,47 +322,7 @@ export function BudgetTable() {
                             </TableRow>
                         )}
 
-                        {items.map((item, index) => {
-                            const prevItem = index > 0 ? items[index - 1] : null
-                            let groupHeader = null
-
-                            if (groupByPage) {
-                                if (!prevItem || item.page_no !== prevItem.page_no) {
-                                    groupHeader = (
-                                        <TableRow key={`group-page-${item.page_no}-${index}`} className="bg-muted/50 hover:bg-muted/50">
-                                            <TableCell colSpan={10} className="font-semibold py-2 pl-4 text-primary">
-                                                Page {item.page_no !== null ? item.page_no : "Unassigned"}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                }
-                            } else if (groupByRoom) {
-                                if (!prevItem || item.room_name !== prevItem.room_name) {
-                                    groupHeader = (
-                                        <TableRow key={`group-room-${item.room_name}-${index}`} className="bg-muted/50 hover:bg-muted/50">
-                                            <TableCell colSpan={10} className="font-semibold py-2 pl-4 text-primary">
-                                                {item.room_name || "Unassigned Room"}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                }
-                            }
-
-                            return (
-                                <Fragment key={item.id}>
-                                    {groupHeader}
-                                    <BudgetRow
-                                        item={item}
-                                        isEditing={editingRowId === item.id}
-                                        onStartEdit={handleStartEdit}
-                                        onSave={handleSave}
-                                        onCancel={handleCancel}
-                                        onDelete={handleDelete}
-                                        onInsert={handleInsert}
-                                    />
-                                </Fragment>
-                            )
-                        })}
+                        {buildRows()}
                     </TableBody>
                 </Table>
             </div>
