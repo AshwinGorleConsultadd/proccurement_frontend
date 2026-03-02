@@ -151,12 +151,21 @@ def _crop_regions(image_path: str, page_num: int, regions, out_dir: str):
         created.append((out_path, filename, region["label"], sub_letter))
     return created
 
-def _sync_update_mongodb_project(project_id: str, registry_url: str):
+def _sync_update_mongodb_project(project_id: str, registry_url: str, page_paths: list, all_images: list):
     try:
         client = MongoClient(MONGO_URI)
         db = client[MONGO_DB_NAME]
-        coll = db["projects"]
-        coll.update_one(
+        projects_coll = db["projects"]
+        project_sources_coll = db["project_sources"]
+        pages_coll = db["pages"]
+        diagrams_coll = db["diagrams"]
+        
+        # we might need to find project_source by project_id
+        project_source = project_sources_coll.find_one({"project": ObjectId(project_id)})
+        project_source_id = project_source["_id"] if project_source else None
+        
+        # update project as before for JSON registry link
+        projects_coll.update_one(
             {"_id": ObjectId(project_id)},
             {
                 "$set": {
@@ -165,6 +174,56 @@ def _sync_update_mongodb_project(project_id: str, registry_url: str):
                 }
             }
         )
+        
+        page_ids = []
+        for idx, page_path in enumerate(page_paths):
+            page_num = idx + 1
+            # Build URL path for the database instead of absolute file path
+            local_path = f"/local_file_db/project_{project_id}/pdf_processing/temp/page_{page_num}_300dpi.png"
+            
+            # create page record
+            new_page = {
+                "project": ObjectId(project_id),
+                "project_source": project_source_id,
+                "page_no": page_num,
+                "is_selected": False,
+                "page_image_url": local_path,
+                "diagrams": [] # populated next
+            }
+            res_page = pages_coll.insert_one(new_page)
+            page_id = res_page.inserted_id
+            page_ids.append(page_id)
+            
+            diagram_ids = []
+            for img in all_images:
+                if img["page_num"] == page_num:
+                    diag_filename = img["filename"]
+                    diag_url = f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{diag_filename}"
+                    new_diagram = {
+                        "project": ObjectId(project_id),
+                        "page": page_id,
+                        "diagram_seq": img["diagram_seq"],
+                        "diagram_image_url": diag_url,
+                        "filename": img["filename"],
+                        "label": img["label"],
+                        "sub_index": img["sub_index"],
+                        "is_selected": False,
+                        "rooms": []
+                    }
+                    res_diag = diagrams_coll.insert_one(new_diagram)
+                    diagram_ids.append(res_diag.inserted_id)
+            
+            pages_coll.update_one(
+                {"_id": page_id},
+                {"$set": {"diagrams": diagram_ids}}
+            )
+
+        if project_source_id and page_ids:
+            project_sources_coll.update_one(
+                {"_id": project_source_id},
+                {"$set": {"pages": page_ids}}
+            )
+
         client.close()
     except Exception as e:
         print(f"[MongoDB] ❌ sync update failed: {e}")
@@ -256,7 +315,7 @@ def run_processing(job_id: int, pdf_path: str, dpi: int, min_area_pct: float):
         # Update MongoDB project document (Sync call in threadpool)
         if job.project_id:
             registry_url = f"/local_file_db/project_{job.project_id}/pdf_processing/sectioned_diagram_registry.json"
-            _sync_update_mongodb_project(job.project_id, registry_url)
+            _sync_update_mongodb_project(job.project_id, registry_url, page_paths, all_images)
 
         _update_job(db, job, status="done", step="Complete — all steps finished", progress=100)
     except Exception as e:

@@ -18,3 +18,15 @@ def get_db():
 
 def get_projects_collection():
     return get_db()["projects"]
+
+def get_project_sources_collection():
+    return get_db()["project_sources"]
+
+def get_pages_collection():
+    return get_db()["pages"]
+
+def get_diagrams_collection():
+    return get_db()["diagrams"]
+
+def get_rooms_collection():
+    return get_db()["rooms"]

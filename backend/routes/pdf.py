@@ -38,18 +38,27 @@ async def upload_pdf(file: UploadFile = File(...), section: str = Form("general"
         pass
 
     # Create MongoDB Project
-    from db.mongo import get_projects_collection
+    from db.mongo import get_projects_collection, get_project_sources_collection
     projects_coll = get_projects_collection()
+    project_sources_coll = get_project_sources_collection()
+    
     new_project = {
-        "name": project_name,
+        "projectName": project_name, # New Schema
+        "name": project_name, # Kept for API compatibility model ProjectOut
         "description": f"Uploaded from {file.filename}",
+        "createdAt": now.isoformat(),
+        "created_at": now.isoformat(), # Kept for backward compatibility
         "status": "draft",
-        "source_pdf_path": f"/uploads/pdfs/{safe_name}",
-        "created_at": now.isoformat(),
-        "updated_at": now.isoformat(),
     }
     result = await projects_coll.insert_one(new_project)
     project_id = str(result.inserted_id)
+
+    new_project_source = {
+        "project": result.inserted_id,
+        "source_pdf_url": f"/uploads/pdfs/{safe_name}",
+        "pages": []
+    }
+    await project_sources_coll.insert_one(new_project_source)
 
     doc = PdfDocument(
         filename=safe_name, original_name=file.filename,

@@ -75,4 +75,12 @@ class ProjectOut(BaseModel):
         """Convert a raw MongoDB document → ProjectOut (stringifies ObjectId)."""
         doc = dict(doc)
         doc["_id"] = str(doc["_id"])
+        
+        # Bridge new MongoDB schema layout to our legacy ProjectOut expectations
+        # Bridge new MongoDB schema layout to our legacy ProjectOut expectations
+        if "name" not in doc:
+            doc["name"] = doc.get("projectName", "Untitled Project")
+        if "createdAt" in doc and "created_at" not in doc:
+            doc["created_at"] = doc["createdAt"]
+            
         return cls(**doc)

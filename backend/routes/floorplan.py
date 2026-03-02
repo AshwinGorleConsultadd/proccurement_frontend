@@ -9,6 +9,8 @@ from models.sql_models import ProcessingJob, PdfDocument
 from schemas.budget import JobOut
 from services.pdf_processing import run_processing, LOCAL_FILE_DB, get_yolo_status
 from routes.pdf import UPLOAD_DIR
+from db.mongo import get_diagrams_collection, get_pages_collection
+from bson import ObjectId
 
 router = APIRouter(prefix="/floorplan", tags=["Floorplan"])
 
@@ -54,62 +56,90 @@ def get_job_status(job_id: int, db: Session = Depends(get_db)):
     return JobOut.model_validate(job)
 
 @router.get("/job/{job_id}/images")
-def get_job_images(job_id: int, db: Session = Depends(get_db)):
+async def get_job_images(job_id: int, db: Session = Depends(get_db)):
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
     if not job:
         raise HTTPException(404, "Job not found")
     if job.status != "done":
         return {"images": [], "total": 0, "status": job.status}
-    manifest_path = os.path.join(job.job_dir, "sectioned_diagram_registry.json")
-    if not os.path.exists(manifest_path):
+    if not job.project_id:
         return {"images": [], "total": 0, "status": "done"}
-    with open(manifest_path) as f:
-        data = json.load(f)
+
+    pages_coll = get_pages_collection()
+    diagrams_coll = get_diagrams_collection()
+
+    pages = await pages_coll.find({"project": ObjectId(job.project_id)}).to_list(length=None)
+    page_map = {p["_id"]: p["page_no"] for p in pages}
+
+    diagrams = await diagrams_coll.find({"project": ObjectId(job.project_id)}).to_list(length=None)
     
-    # rel_base should be project_699d.../pdf_processing
-    rel_base = job.job_dir.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
-    for img in data["images"]:
-        fname = img["filename"]
-        img["url"] = f"/local_file_db/{rel_base}/sectioned/{fname}"
-    return data
+    images = []
+    for d in diagrams:
+        images.append({
+            "id": str(d["_id"]),
+            "filename": d.get("filename", ""),
+            "page_number": page_map.get(d.get("page"), 0),
+            "label": d.get("label", ""),
+            "diagram_seq": d.get("diagram_seq", ""),
+            "sub_index": d.get("sub_index", 0),
+            "url": d.get("diagram_image_url", ""),
+            "is_selected": d.get("is_selected", False)
+        })
+
+    return {"images": images, "total": len(images), "status": "done"}
 
 @router.post("/job/{job_id}/save-selected")
-def save_selected_images(job_id: int, body: dict, db: Session = Depends(get_db)):
+async def save_selected_images(job_id: int, body: dict, db: Session = Depends(get_db)):
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
     if not job:
         raise HTTPException(404, "Job not found")
     if job.status != "done":
         raise HTTPException(400, "Job not complete yet")
 
-    manifest_path = os.path.join(job.job_dir, "sectioned_diagram_registry.json")
-    with open(manifest_path) as f:
-        manifest = json.load(f)
-
     selected_names = set(body.get("selected", []))
     selected_dir   = os.path.join(job.job_dir, "sectioned", "selected")
     os.makedirs(selected_dir, exist_ok=True)
 
+    diagrams_coll = get_diagrams_collection()
+    pages_coll = get_pages_collection()
+
+    diagrams = await diagrams_coll.find({"project": ObjectId(job.project_id)}).to_list(length=None)
+    pages = await pages_coll.find({"project": ObjectId(job.project_id)}).to_list(length=None)
+    page_map = {p["_id"]: p["page_no"] for p in pages}
+
+    # Reset all to not selected first
+    await diagrams_coll.update_many({"project": ObjectId(job.project_id)}, {"$set": {"is_selected": False}})
+    
     result_images = []
     rel_base = job.job_dir.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
-    for img in manifest["images"]:
-        if img["filename"] in selected_names:
-            src = img["path"]
-            dst = os.path.join(selected_dir, img["filename"])
-            if os.path.exists(src):
-                shutil.copy(src, dst)
+    
+    for d in diagrams:
+        if str(d["_id"]) in selected_names:
+            await diagrams_coll.update_one({"_id": d["_id"]}, {"$set": {"is_selected": True}})
+            # Optional: update the page is_selected to True if any of its diagrams are selected
+            await pages_coll.update_one({"_id": d["page"]}, {"$set": {"is_selected": True}})
+            
+            # Keep copying the physical files and populating metadata for backward compatibility (selected_images_metadata.json etc)
+            rel_source_url = d.get("diagram_image_url", "").replace("/local_file_db/", "").lstrip("/")
+            src_path = os.path.join(LOCAL_FILE_DB, rel_source_url)
+            dst_path = os.path.join(selected_dir, d.get("filename"))
+            if os.path.exists(src_path):
+                shutil.copy(src_path, dst_path)
+            
             result_images.append({
-                "filename":      img["filename"],
-                "page_number":   img["page_num"],
-                "label":         img["label"],
-                "diagram_seq":   img.get("diagram_seq", "a"),
-                "sub_index":     img["sub_index"],
-                "original_path": src,
-                "saved_path":    dst,
-                "url": f"/local_file_db/{rel_base}/sectioned/selected/{img['filename']}",
+                "id":            str(d["_id"]),
+                "filename":      d.get("filename"),
+                "page_number":   page_map.get(d.get("page"), 0),
+                "label":         d.get("label"),
+                "diagram_seq":   d.get("diagram_seq", "a"),
+                "sub_index":     d.get("sub_index", 0),
+                "original_path": src_path,
+                "saved_path":    dst_path,
+                "url":           f"/local_file_db/{rel_base}/sectioned/selected/{d.get('filename')}",
             })
 
     metadata = {
-        "project_id":     None,
+        "project_id":     job.project_id,
         "total_selected": len(result_images),
         "timestamp":      datetime.now().isoformat(),
         "dpi":            job.dpi,

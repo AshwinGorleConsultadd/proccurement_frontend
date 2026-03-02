@@ -26,4 +26,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      "/local_file_db": "http://localhost:8000",
+      "/uploads": "http://localhost:8000"
+    }
+  }
 });
