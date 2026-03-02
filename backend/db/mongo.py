@@ -19,6 +19,10 @@ def get_db():
 def get_projects_collection():
     return get_db()["projects"]
 
+def get_budget_collection():
+    return get_db()["budget_items"]
+
+
 def get_project_sources_collection():
     return get_db()["project_sources"]
 

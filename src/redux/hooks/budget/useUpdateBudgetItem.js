@@ -4,13 +4,11 @@ import { updateBudgetItem } from '../../actions/budget/budgetActions'
 
 export function useUpdateBudgetItem() {
     const dispatch = useDispatch()
-    const { loading, error } = useSelector((state) => state.budget)
+    const { projectId, loading, error } = useSelector((state) => state.budget)
 
     const update = useCallback(
-        async (id, data) => {
-            return dispatch(updateBudgetItem({ id, data }))
-        },
-        [dispatch]
+        async (id, data) => dispatch(updateBudgetItem({ projectId, id, data })),
+        [dispatch, projectId]
     )
 
     return { update, loading, error }

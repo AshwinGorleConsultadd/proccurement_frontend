@@ -1,5 +1,5 @@
 
-import { useEffect, Fragment } from "react"
+import { useEffect, Fragment, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import {
     Table,
@@ -12,12 +12,19 @@ import {
 import { Button } from "../ui/button"
 import { Switch } from "../ui/switch"
 import { Badge } from "../ui/badge"
-import { Loader2 } from "lucide-react"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../ui/dropdown-menu"
+import { Loader2, Download, FileSpreadsheet, FileText } from "lucide-react"
 
 import { useGetBudgetItems } from "../../redux/hooks/budget/useGetBudgetItems"
 import { useCreateBudgetItem } from "../../redux/hooks/budget/useCreateBudgetItem"
 import { useUpdateBudgetItem } from "../../redux/hooks/budget/useUpdateBudgetItem"
 import { useDeleteBudgetItem } from "../../redux/hooks/budget/useDeleteBudgetItem"
+import { useSubItems } from "../../redux/hooks/budget/useSubItems"
 import {
     setEditingRowId,
     setSearch,
@@ -25,99 +32,186 @@ import {
     setGroupByPage,
     setGroupByRoom,
     setSection,
+    setProjectId as setProjectIdAction,
 } from "../../redux/slices/budgetSlice"
 
 import { BudgetRow } from "./BudgetRow"
 import { PaginationControls } from "./PaginationControls"
 import { SearchInput } from "./SearchInput"
 import { formatCurrency } from "../../lib/utils"
+import { exportToExcel, exportToPdf } from "./exportBudget"
 
-export function BudgetTable() {
+/**
+ * BudgetTable — requires a projectId prop (MongoDB _id string of the project).
+ */
+export function BudgetTable({ projectId: propProjectId }) {
     const dispatch = useDispatch()
-    const { items, total, page, pageSize, totalSubtotal, loading, error, refetch } = useGetBudgetItems()
+    const { items, total, page, pageSize, totalSubtotal, roomTotals, loading, error, refetch } = useGetBudgetItems()
     const { create } = useCreateBudgetItem()
     const { update } = useUpdateBudgetItem()
     const { remove } = useDeleteBudgetItem()
+    const { addSub, updateSub, deleteSub, detachSub } = useSubItems()
 
-    const { editingRowId, search, groupByPage, groupByRoom, section } = useSelector((state) => state.budget)
+    const { editingRowId, search, groupByPage, groupByRoom, section, projectId } = useSelector((state) => state.budget)
+    const [exporting, setExporting] = useState(null)
+
+    // Sync projectId from prop into Redux
+    useEffect(() => {
+        if (propProjectId && propProjectId !== projectId) {
+            dispatch(setProjectIdAction(propProjectId))
+        }
+    }, [propProjectId, projectId, dispatch])
 
     // Handlers
-    const handleStartEdit = (id) => {
-        dispatch(setEditingRowId(id))
-    }
+    const handleStartEdit = (id) => dispatch(setEditingRowId(id))
 
     const handleSave = async (id, data) => {
-        // Strip fields that aren't part of BudgetItemUpdate — only send editable fields
-        const { id: _id, section: _section, order_index: _oi, ...updateData } = data
+        // Strip non-updatable fields
+        const { _id, __v, section: _s, order_index: _oi, subitems: _sub, created_at: _ca, updated_at: _ua, project_id: _pid, ...updateData } = data
         await update(id, updateData)
         dispatch(setEditingRowId(null))
-        // Re-fetch so updated values are reflected (the extraReducer updates in place
-        // but re-fetching guarantees consistency with backend state)
         refetch()
     }
 
-    const handleCancel = () => {
-        dispatch(setEditingRowId(null))
-    }
+    const handleCancel = () => dispatch(setEditingRowId(null))
 
     const handleDelete = async (id) => {
         await remove(id)
     }
 
     const handleInsert = async (relativeToId, position) => {
-        const newItem = {
-            section,
-            insert_relative_to: relativeToId,
-            position
-        }
+        const newItem = { section, insert_relative_to: relativeToId, position }
         const result = await create(newItem)
         if (!result.error) {
-            dispatch(setEditingRowId(result.payload.id))
+            dispatch(setEditingRowId(result.payload._id))
             refetch()
         }
     }
 
-    const handleSearchChange = (val) => {
-        dispatch(setSearch(val))
+    const handleToggleHide = async (id) => {
+        const item = items.find((i) => i._id === id)
+        if (!item) return
+        await update(id, { hidden_from_total: !item.hidden_from_total })
+        refetch()
     }
 
-    const handlePageChange = (newPage) => {
-        dispatch(setPage(newPage))
+    const handleSearchChange = (val) => dispatch(setSearch(val))
+    const handlePageChange = (p) => dispatch(setPage(p))
+    const toggleGroupByPage = (v) => dispatch(setGroupByPage(v))
+    const toggleGroupByRoom = (v) => dispatch(setGroupByRoom(v))
+
+    // Export
+    const handleExport = async (format) => {
+        if (!projectId) return
+        setExporting(format)
+        try {
+            if (format === "excel") await exportToExcel(projectId, section, groupByRoom, groupByPage)
+            else await exportToPdf(projectId, section, groupByRoom, groupByPage)
+        } catch (e) {
+            console.error("Export failed:", e)
+        } finally {
+            setExporting(null)
+        }
     }
 
-    const toggleGroupByPage = (checked) => {
-        dispatch(setGroupByPage(checked))
-    }
+    // ── Group headers + room subtotals ────────────────────────────────────────
+    const buildRows = () => {
+        const rows = []
+        let lastGroupKey = null
+        let lastTotal = null
 
-    const toggleGroupByRoom = (checked) => {
-        dispatch(setGroupByRoom(checked))
-    }
-
-    // Group Header Rendering Helper
-    const renderGroupHeader = (item, prevItem) => {
-        if (groupByPage) {
-            if (!prevItem || item.page_no !== prevItem.page_no) {
-                return (
-                    <TableRow className="bg-muted/80 hover:bg-muted/80">
-                        <TableCell colSpan={10} className="font-bold py-1">
-                            Page {item.page_no || "Unassigned"}
-                        </TableCell>
-                    </TableRow>
-                )
+        items.forEach((item, idx) => {
+            if (groupByPage) {
+                const key = item.page_no
+                if (key !== lastGroupKey) {
+                    if (lastGroupKey !== null && lastTotal !== null) {
+                        rows.push(
+                            <TableRow key={`subtotal-page-${lastGroupKey}`} className="bg-muted/40 border-t-2 font-semibold">
+                                <TableCell colSpan={9} className="py-2 pl-3 text-sm text-muted-foreground">Page {lastGroupKey} — Subtotal</TableCell>
+                                <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">{formatCurrency(lastTotal)}</TableCell>
+                                <TableCell />
+                            </TableRow>
+                        )
+                    }
+                    rows.push(
+                        <TableRow key={`header-page-${key}`} className="bg-muted/60 hover:bg-muted/60">
+                            <TableCell colSpan={11} className="py-2 pl-3">
+                                <Badge variant="secondary" className="text-xs">Page {key ?? "N/A"}</Badge>
+                            </TableCell>
+                        </TableRow>
+                    )
+                    lastGroupKey = key
+                    lastTotal = 0
+                }
+                if (!item.hidden_from_total) lastTotal += item.extended || 0
+            } else if (groupByRoom) {
+                const key = item.room_name || "Unassigned Room"
+                if (key !== lastGroupKey) {
+                    rows.push(
+                        <TableRow key={`header-room-${key}`} className="bg-muted/60 hover:bg-muted/60">
+                            <TableCell colSpan={11} className="py-2 pl-3">
+                                <Badge variant="secondary" className="text-xs">{key}</Badge>
+                            </TableCell>
+                        </TableRow>
+                    )
+                    lastGroupKey = key
+                    lastTotal = roomTotals[key] ?? null
+                }
             }
+
+            rows.push(
+                <BudgetRow
+                    key={item._id}
+                    item={item}
+                    isEditing={editingRowId === item._id}
+                    onStartEdit={handleStartEdit}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                    onDelete={handleDelete}
+                    onInsert={handleInsert}
+                    onToggleHide={handleToggleHide}
+                    onAddSubItem={addSub}
+                    onUpdateSubItem={updateSub}
+                    onDeleteSubItem={deleteSub}
+                    onDetachSubItem={detachSub}
+                />
+            )
+        })
+
+        // Final group subtotal
+        if (groupByPage && lastGroupKey !== null && lastTotal !== null) {
+            rows.push(
+                <TableRow key={`subtotal-page-${lastGroupKey}-last`} className="bg-muted/40 border-t-2 font-semibold">
+                    <TableCell colSpan={9} className="py-2 pl-3 text-sm text-muted-foreground">Page {lastGroupKey} — Subtotal</TableCell>
+                    <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">{formatCurrency(lastTotal)}</TableCell>
+                    <TableCell />
+                </TableRow>
+            )
         }
         if (groupByRoom) {
-            if (!prevItem || item.room_name !== prevItem.room_name) {
-                return (
-                    <TableRow className="bg-muted/80 hover:bg-muted/80">
-                        <TableCell colSpan={10} className="font-bold py-1">
-                            {item.room_name || "Unassigned Room"}
-                        </TableCell>
-                    </TableRow>
-                )
-            }
+            const uniqueRooms = [...new Set(items.map((i) => i.room_name || "Unassigned Room"))]
+            uniqueRooms.forEach((room) => {
+                if (roomTotals[room] != null) {
+                    rows.push(
+                        <TableRow key={`subtotal-room-${room}`} className="bg-primary/5 border-t-2 font-semibold">
+                            <TableCell colSpan={9} className="py-2 pl-3 text-sm text-muted-foreground italic">{room} — Merchandise Total</TableCell>
+                            <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">{formatCurrency(roomTotals[room])}</TableCell>
+                            <TableCell />
+                        </TableRow>
+                    )
+                }
+            })
         }
-        return null
+
+        return rows
+    }
+
+    if (!propProjectId) {
+        return (
+            <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+                No project selected. Open a project to view its budget.
+            </div>
+        )
     }
 
     return (
@@ -126,31 +220,44 @@ export function BudgetTable() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 rounded-lg border shadow-sm">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center space-x-2">
-                        <Switch
-                            id="group-page"
-                            checked={groupByPage}
-                            onCheckedChange={toggleGroupByPage}
-                            disabled={loading}
-                        />
-                        <label htmlFor="group-page" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Group by Page
-                        </label>
+                        <Switch id="group-page" checked={groupByPage} onCheckedChange={toggleGroupByPage} disabled={loading} />
+                        <label htmlFor="group-page" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Group by Page</label>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <Switch
-                            id="group-room"
-                            checked={groupByRoom}
-                            onCheckedChange={toggleGroupByRoom}
-                            disabled={loading}
-                        />
-                        <label htmlFor="group-room" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                            Group by Room
-                        </label>
+                        <Switch id="group-room" checked={groupByRoom} onCheckedChange={toggleGroupByRoom} disabled={loading} />
+                        <label htmlFor="group-room" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Group by Room</label>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground">Total Budget:</span>
-                    <span className="text-xl font-bold">{formatCurrency(totalSubtotal)}</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-muted-foreground">Total Budget:</span>
+                        <span className="text-xl font-bold">{formatCurrency(totalSubtotal)}</span>
+                    </div>
+                    <div className="h-6 w-px bg-border" />
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline" size="sm"
+                                className="gap-1.5 text-xs border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/40"
+                                disabled={exporting != null || loading}
+                            >
+                                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                Export
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleExport("excel") }} className="gap-2 cursor-pointer">
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                                <span>Export as Excel</span>
+                                {exporting === "excel" && <Loader2 className="h-3 w-3 ml-auto animate-spin" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); handleExport("pdf") }} className="gap-2 cursor-pointer">
+                                <FileText className="h-4 w-4 text-red-500" />
+                                <span>Export as PDF</span>
+                                {exporting === "pdf" && <Loader2 className="h-3 w-3 ml-auto animate-spin" />}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
@@ -174,70 +281,22 @@ export function BudgetTable() {
                             <TableHead className="w-[80px]">Qty</TableHead>
                             <TableHead className="w-[100px] text-right">Unit Cost</TableHead>
                             <TableHead className="w-[100px] text-right">Extended</TableHead>
-                            <TableHead className="w-[120px] text-right">Actions</TableHead>
+                            <TableHead className="w-[150px] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {items.length === 0 && !loading && (
                             <TableRow>
-                                <TableCell colSpan={10} className="h-24 text-center">
-                                    No budget items found.
-                                </TableCell>
+                                <TableCell colSpan={10} className="h-24 text-center">No budget items found.</TableCell>
                             </TableRow>
                         )}
-
-                        {items.map((item, index) => {
-                            const prevItem = index > 0 ? items[index - 1] : null
-                            let groupHeader = null
-
-                            if (groupByPage) {
-                                if (!prevItem || item.page_no !== prevItem.page_no) {
-                                    groupHeader = (
-                                        <TableRow key={`group-page-${item.page_no}-${index}`} className="bg-muted/50 hover:bg-muted/50">
-                                            <TableCell colSpan={10} className="font-semibold py-2 pl-4 text-primary">
-                                                Page {item.page_no !== null ? item.page_no : "Unassigned"}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                }
-                            } else if (groupByRoom) {
-                                if (!prevItem || item.room_name !== prevItem.room_name) {
-                                    groupHeader = (
-                                        <TableRow key={`group-room-${item.room_name}-${index}`} className="bg-muted/50 hover:bg-muted/50">
-                                            <TableCell colSpan={10} className="font-semibold py-2 pl-4 text-primary">
-                                                {item.room_name || "Unassigned Room"}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                }
-                            }
-
-                            return (
-                                <Fragment key={item.id}>
-                                    {groupHeader}
-                                    <BudgetRow
-                                        item={item}
-                                        isEditing={editingRowId === item.id}
-                                        onStartEdit={handleStartEdit}
-                                        onSave={handleSave}
-                                        onCancel={handleCancel}
-                                        onDelete={handleDelete}
-                                        onInsert={handleInsert}
-                                    />
-                                </Fragment>
-                            )
-                        })}
+                        {buildRows()}
                     </TableBody>
                 </Table>
             </div>
 
             {/* Pagination */}
-            <PaginationControls
-                page={page}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={handlePageChange}
-            />
+            <PaginationControls page={page} pageSize={pageSize} total={total} onPageChange={handlePageChange} />
         </div>
     )
 }
