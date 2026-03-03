@@ -11,7 +11,6 @@ import {
   ChevronRight,
   ExternalLink,
   CheckCircle2,
-  Loader2,
   ReceiptText,
   Loader2,
   Check,
@@ -341,15 +340,6 @@ export function RoomProcessorTab({ project }) {
 
     return () => clearInterval(interval);
   }, [pollingRooms, project._id, project.id, loadOne]);
-
-  const [lightboxState, setLightboxState] = useState(null);
-
-  const openLightbox = (roomsArray, clickedRoomId) => {
-    const idx = roomsArray.findIndex(
-      (r) => r.id === clickedRoomId || r.name === clickedRoomId,
-    );
-    setLightboxState({ images: roomsArray, startIndex: Math.max(0, idx) });
-  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
