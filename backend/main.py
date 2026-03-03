@@ -19,6 +19,7 @@ from routes.pdf import router as pdf_router
 from routes.floorplan import router as floorplan_router
 from routes.project_sql import router as sql_projects_router
 from routes.projects import router as mongo_projects_router
+from routes.rooms import router as rooms_router
 
 def seed_data():
     db = SessionLocal()
@@ -90,6 +91,7 @@ app.include_router(pdf_router)
 app.include_router(floorplan_router)
 app.include_router(mongo_projects_router)
 app.include_router(sql_projects_router)
+app.include_router(rooms_router)
 
 @app.get("/health")
 def health():

@@ -10,7 +10,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Loader2,
+  Check,
+  XCircle,
 } from "lucide-react";
+import { useProjects } from "../../redux/hooks/project/useProjects";
+import { useNavigate } from "react-router-dom";
 
 const BASE = "http://localhost:8000";
 
@@ -98,7 +103,8 @@ function Lightbox({ images, startIndex, onClose }) {
 }
 
 export function RoomProcessorTab({ project }) {
-  const images = project?.selected_diagram_metadata?.images || [];
+  // Only render if we have available extracted rooms from saved pages
+  const images = project?.diagrams || [];
 
   // Group rooms by their page number.
   // We'll iterate the images array and collect the rooms within them.
@@ -139,13 +145,71 @@ export function RoomProcessorTab({ project }) {
     );
   }
 
-  const handleProcessRoom = (roomId, roomName) => {
-    // Note: Dummy handler for now per instructions
-    console.log(
-      `Triggering processing for room ID: ${roomId}, Name: ${roomName}`,
-    );
-    alert(`Processing pipeline initiated for "${roomName}". (Placeholder)`);
+  const navigate = useNavigate();
+  const { loadOne } = useProjects();
+  const [pollingRooms, setPollingRooms] = useState(new Set());
+  const [roomStatus, setRoomStatus] = useState({});
+
+  const handleProcessRoom = async (roomId, roomName) => {
+    try {
+      // Update UI immediately
+      setRoomStatus((prev) => ({
+        ...prev,
+        [roomId]: { status: "pending", progress: 0 },
+      }));
+      setPollingRooms((prev) => new Set(prev).add(roomId));
+
+      const res = await fetch(
+        `${BASE}/projects/${project._id || project.id}/rooms/${roomId}/analyze`,
+        { method: "POST" },
+      );
+      if (!res.ok) throw new Error("Failed to start analysis");
+    } catch (err) {
+      console.error(err);
+      setRoomStatus((prev) => ({
+        ...prev,
+        [roomId]: { status: "error", progress: 0, error: err.message },
+      }));
+    }
   };
+
+  // Polling Effect
+  useEffect(() => {
+    if (pollingRooms.size === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const roomId of pollingRooms) {
+        try {
+          const res = await fetch(
+            `${BASE}/projects/${project._id || project.id}/rooms/${roomId}/analysis-status`,
+          );
+          if (res.ok) {
+            const data = await res.json();
+
+            setRoomStatus((prev) => ({
+              ...prev,
+              [roomId]: { status: data.status, progress: data.progress },
+            }));
+
+            if (data.status === "completed" || data.status === "error") {
+              setPollingRooms((prev) => {
+                const updated = new Set(prev);
+                updated.delete(roomId);
+                return updated;
+              });
+              if (data.status === "completed") {
+                loadOne(project._id || project.id); // Reload full project upon completion
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Poll error for", roomId, e);
+        }
+      }
+    }, 2500); // Check every 2.5 seconds
+
+    return () => clearInterval(interval);
+  }, [pollingRooms, project._id, project.id, loadOne]);
 
   const [lightboxState, setLightboxState] = useState(null);
 
@@ -219,7 +283,6 @@ export function RoomProcessorTab({ project }) {
                       </div>
                     </div>
 
-                    {/* Footer */}
                     <div className="px-2.5 py-2 border-t flex flex-col justify-between gap-2 min-w-0 bg-card border-border/50 h-[80px]">
                       <span
                         className="flex-1 min-w-0 text-[12px] font-semibold font-mono truncate leading-tight text-foreground/80 whitespace-normal"
@@ -227,17 +290,77 @@ export function RoomProcessorTab({ project }) {
                       >
                         {room.name}
                       </span>
-                      <Button
-                        size="sm"
-                        className="w-full gap-2 text-xs h-7 bg-violet-600 hover:bg-violet-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleProcessRoom(room.id, room.name);
-                        }}
-                      >
-                        <Cpu className="h-3.5 w-3.5" />
-                        Process
-                      </Button>
+                      {(() => {
+                        // Priority: 1. local tracked status 2. backed mongo status 3. default structure
+                        const local = roomStatus[room.id || room.name];
+                        const status = local
+                          ? local.status
+                          : room.analysis_status || "idle";
+                        const progress = local
+                          ? local.progress
+                          : room.analysis_progress || 0;
+
+                        if (
+                          status === "idle" ||
+                          status === "error" ||
+                          !status
+                        ) {
+                          return (
+                            <Button
+                              size="sm"
+                              className={`w-full gap-2 text-xs h-7 ${status === "error" ? "bg-red-600 hover:bg-red-700" : "bg-violet-600 hover:bg-violet-700"}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleProcessRoom(room.id, room.name);
+                              }}
+                            >
+                              {status === "error" ? (
+                                <XCircle className="h-3.5 w-3.5" />
+                              ) : (
+                                <Cpu className="h-3.5 w-3.5" />
+                              )}
+                              {status === "error" ? "Retry" : "Process"}
+                            </Button>
+                          );
+                        } else if (status === "completed") {
+                          return (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full gap-2 text-xs h-7 border-emerald-500/50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(
+                                  `/editor/${room.id || room._id || room.name}`,
+                                );
+                              }}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Go to Editor
+                            </Button>
+                          );
+                        } else {
+                          // Processing (pending/preprocessing/generating_masks/etc)
+                          return (
+                            <div className="flex flex-col gap-1 w-full justify-center">
+                              <div className="flex items-center gap-2 justify-between px-1">
+                                <span className="text-[10px] uppercase font-mono text-muted-foreground truncate">
+                                  {status.replace("_", " ")}
+                                </span>
+                                <span className="text-[10px] font-mono font-medium">
+                                  {progress}%
+                                </span>
+                              </div>
+                              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-violet-500 transition-all duration-300"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+                      })()}
                     </div>
                   </div>
                 );

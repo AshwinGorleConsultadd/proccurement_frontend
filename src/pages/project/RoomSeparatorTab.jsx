@@ -5,12 +5,14 @@ import {
   Trash2,
   Check,
   X,
+  Play,
   MousePointer2,
   Settings,
   Type,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { useProjects } from "../../redux/hooks/project/useProjects";
 
 const BASE = "http://localhost:8000";
 
@@ -236,13 +238,18 @@ function DrawingCanvas({ image, drawnRooms, setDrawnRooms }) {
 }
 
 export function RoomSeparatorTab({ project }) {
-  const images = project?.selected_diagram_metadata?.images || [];
+  const { loadOne } = useProjects();
+  const images =
+    project?.diagrams || project?.selected_diagram_metadata?.images || [];
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const [sessionRooms, setSessionRooms] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Track active analysis polling intervals
+  const [pollingRooms, setPollingRooms] = useState(new Set());
 
   const selectedImage = images[selectedIdx];
   const currentFileName = selectedImage?.filename;
@@ -260,6 +267,8 @@ export function RoomSeparatorTab({ project }) {
           ...r,
           polygon: r.mask_array, // rename map mapping back from backend structure
           isSaved: true,
+          analysis_status: r.analysis_status || "idle",
+          analysis_progress: r.analysis_progress || 0,
         })),
       }));
     }
@@ -297,6 +306,85 @@ export function RoomSeparatorTab({ project }) {
     setCurrentDrawnRooms((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const startAnalysis = async (roomIdx) => {
+    const room = currentDrawnRooms[roomIdx];
+    if (!room.isSaved || !room.id) return;
+    try {
+      setError("");
+      // Update UI immediately
+      setCurrentDrawnRooms((prev) => {
+        const updated = [...prev];
+        updated[roomIdx] = {
+          ...updated[roomIdx],
+          analysis_status: "pending",
+          analysis_progress: 0,
+        };
+        return updated;
+      });
+
+      const res = await fetch(
+        `${BASE}/projects/${project._id || project.id}/rooms/${room.id}/analyze`,
+        { method: "POST" },
+      );
+      if (!res.ok) throw new Error("Failed to start analysis");
+
+      // Start polling
+      setPollingRooms((prev) => new Set(prev).add(room.id));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Polling Effect
+  useEffect(() => {
+    if (pollingRooms.size === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const roomId of pollingRooms) {
+        try {
+          const res = await fetch(
+            `${BASE}/projects/${project._id || project.id}/rooms/${roomId}/analysis-status`,
+          );
+          if (res.ok) {
+            const data = await res.json();
+
+            // Update session room state
+            setSessionRooms((prev) => {
+              const nextState = { ...prev };
+              for (const [filename, rooms] of Object.entries(nextState)) {
+                nextState[filename] = rooms.map((r) =>
+                  r.id === roomId
+                    ? {
+                        ...r,
+                        analysis_status: data.status,
+                        analysis_progress: data.progress,
+                      }
+                    : r,
+                );
+              }
+              return nextState;
+            });
+
+            if (data.status === "completed" || data.status === "error") {
+              setPollingRooms((prev) => {
+                const updated = new Set(prev);
+                updated.delete(roomId);
+                return updated;
+              });
+              if (data.status === "completed") {
+                loadOne(project._id || project.id); // Reload full project upon completion
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Poll error for", roomId, e);
+        }
+      }
+    }, 2500); // Check every 2.5 seconds
+
+    return () => clearInterval(interval);
+  }, [pollingRooms, project._id, project.id, loadOne]);
+
   const handleSaveToBackend = async () => {
     if (Object.keys(sessionRooms).length === 0) return;
     setSaving(true);
@@ -325,6 +413,7 @@ export function RoomSeparatorTab({ project }) {
         filename: selectedImage.filename,
         page_number: pageNum,
         diagram_seq: selectedImage.diagram_seq || parsedSeq,
+        diagram_id: selectedImage.id || selectedImage._id,
         rooms: currentDrawnRooms,
       };
 
@@ -343,10 +432,19 @@ export function RoomSeparatorTab({ project }) {
       setSuccessMsg(
         `Successfully saved and extracted ${data.rooms.length} room(s)!`,
       );
-      // Clear session rooms for this image to show task complete
-      setCurrentDrawnRooms([]);
+      // Delete session rooms for this image so useEffect repopulates natively when Redux sync finishes
+      setSessionRooms((prev) => {
+        const nextState = { ...prev };
+        delete nextState[selectedImage.filename];
+        return nextState;
+      });
       // Hide success message after a few seconds
       setTimeout(() => setSuccessMsg(""), 3000);
+
+      // Trigger Redux fetch to reload project properties with new extracted metadata
+      if (project?._id || project?.id) {
+        loadOne(project._id || project.id);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -419,24 +517,66 @@ export function RoomSeparatorTab({ project }) {
                 No rooms drawn yet.
               </p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {currentDrawnRooms.map((r, i) => (
                   <div
                     key={i}
-                    className="flex justify-between items-center bg-card border border-border/60 px-2.5 py-1.5 rounded-lg group"
+                    className="flex flex-col bg-card border border-border/60 p-2 rounded-lg group"
                   >
-                    <span
-                      className="text-xs font-medium truncate flex-1"
-                      title={r.name}
-                    >
-                      {r.name}
-                    </span>
-                    <button
-                      onClick={() => removeDrawnRoom(i)}
-                      className="text-muted-foreground/40 hover:text-red-500 transition-colors shrink-0 px-1 opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    <div className="flex justify-between items-center mb-1">
+                      <span
+                        className="text-xs font-medium truncate flex-1"
+                        title={r.name}
+                      >
+                        {r.name}
+                      </span>
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        {r.isSaved &&
+                          (r.analysis_status === "idle" ||
+                            !r.analysis_status ||
+                            r.analysis_status === "error") && (
+                            <button
+                              onClick={() => startAnalysis(i)}
+                              className="text-muted-foreground hover:text-violet-500 transition-colors px-1"
+                              title="Analyze Room Layout"
+                            >
+                              <Play className="h-3 w-3" />
+                            </button>
+                          )}
+                        <button
+                          onClick={() => removeDrawnRoom(i)}
+                          className="text-muted-foreground hover:text-red-500 transition-colors px-1"
+                          title="Delete Room"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Status Tracker */}
+                    {r.isSaved &&
+                      r.analysis_status &&
+                      r.analysis_status !== "idle" && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full ${r.analysis_status === "error" ? "bg-red-500" : "bg-violet-500"} transition-all`}
+                              style={{ width: `${r.analysis_progress || 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] uppercase font-mono text-muted-foreground w-16 text-right">
+                            {r.analysis_status === "completed"
+                              ? "Done"
+                              : r.analysis_status === "error"
+                                ? "Failed"
+                                : `${r.analysis_progress}%`}
+                          </span>
+                        </div>
+                      )}
+                    {!r.isSaved && (
+                      <span className="text-[10px] text-amber-500/80 bg-amber-500/10 self-start px-1.5 py-0.5 rounded">
+                        Unsaved draft
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

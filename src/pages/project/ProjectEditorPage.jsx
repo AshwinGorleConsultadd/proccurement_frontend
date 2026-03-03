@@ -466,7 +466,8 @@ function SourceTab({ project }) {
   const id = project._id ?? project.id;
 
   // ── Saved images come directly from MongoDB project document ──────────
-  const savedImages = project.selected_diagram_metadata?.images ?? [];
+  const savedImages =
+    project.diagrams || project.selected_diagram_metadata?.images || [];
 
   // ── Available images still fetched from backend (all in sectioned/) ───
   const allData = availablePages[id];

@@ -8,7 +8,7 @@ import {
 } from "react-konva";
 import { useState, useRef, useEffect } from "react";
 import useImage from "use-image";
-import floorImage from "../../data/floorplan.png";
+import defaultFloorImage from "../../data/floorplan.png";
 
 export default function CanvasEditor({
   groups,
@@ -24,8 +24,9 @@ export default function CanvasEditor({
   onCtrlClickMask, // (maskId, { x, y }) => void — Ctrl+Click in reassign mode
   isDrawMode,
   onSaveNewMask, // (polygonArray) => void
+  bgImageUrl,
 }) {
-  const [image] = useImage(floorImage);
+  const [image] = useImage(bgImageUrl || defaultFloorImage);
   const stageRef = useRef(null);
 
   const [scale, setScale] = useState(1);

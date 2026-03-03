@@ -4,13 +4,14 @@ routes/projects.py
 All /projects/* REST endpoints, backed by MongoDB via the project service.
 """
 
-from fastapi import APIRouter, HTTPException, File, Form, UploadFile, Depends
+from fastapi import APIRouter, HTTPException, File, Form, UploadFile, Depends, BackgroundTasks
 from models.project import ProjectCreate, ProjectOut, ProjectUpdate
 from services import project_service
+from services.room_analysis_orchestrator import run_room_analysis_pipeline
 import os, json, shutil
 from datetime import datetime
 from services.project_service import LOCAL_FILE_DB
-from db.mongo import get_projects_collection
+from db.mongo import get_projects_collection, get_diagrams_collection, get_rooms_collection
 from bson import ObjectId
 import time
 import cv2
@@ -379,17 +380,48 @@ async def extract_rooms(project_id: str, body: dict):
             with open(registry_path, 'w') as f:
                 json.dump(registry_data, f, indent=4)
 
-        # 2. Update MongoDB to keep frontend State matching exactly
-        col = get_projects_collection()
-        await col.update_one(
-            {
-                "_id": ObjectId(project_id),
-                "selected_diagram_metadata.images.filename": filename
-            },
-            {
-                "$set": {"selected_diagram_metadata.images.$.rooms": results}
-            }
-        )
+        # 2. Insert into the standalone Rooms schema and update Diagram schema
+        diagrams_coll = get_diagrams_collection()
+        rooms_coll = get_rooms_collection()
+        
+        diagram_id = body.get("diagram_id")
+        
+        diagram = None
+        if diagram_id and len(diagram_id) == 24:
+            diagram = await diagrams_coll.find_one({"_id": ObjectId(diagram_id)})
+
+        if not diagram:
+            # Fallback to finding by project_id and original filename logic (less reliable due to renames)
+            diagram = await diagrams_coll.find_one({"project": ObjectId(project_id), "filename": filename})
+
+        if diagram:
+            room_ids = []
+            for res in results:
+                # Store new Room document
+                new_room = {
+                    "_id": ObjectId() if len(res["id"]) != 24 else ObjectId(res["id"]), # Prefer existing valid Mongo ObjectIds, fallback generator
+                    "diagram": diagram["_id"],
+                    "project": ObjectId(project_id),
+                    "room_name": res["name"],
+                    "room_image_url": res["url"],
+                    "mask_array": res["mask_array"],
+                    "created_at": res.get("created_at") or datetime.now().isoformat()
+                }
+                
+                # Check existance by name in current diagram to avoid duplicate IDs during re-save
+                exist = await rooms_coll.find_one({"diagram": diagram["_id"], "room_name": res["name"]})
+                if exist:
+                    await rooms_coll.update_one({"_id": exist["_id"]}, {"$set": new_room})
+                    room_ids.append(exist["_id"])
+                else:
+                    await rooms_coll.insert_one(new_room)
+                    room_ids.append(new_room["_id"])
+
+            # Link Diagram document to the Rooms
+            await diagrams_coll.update_one(
+                {"_id": diagram["_id"]},
+                {"$addToSet": {"rooms": {"$each": room_ids}}}
+            )
         
     return {"ok": True, "rooms": results}
 
@@ -425,22 +457,83 @@ async def delete_room(project_id: str, room_id: str, image_filename: str):
         with open(registry_path, 'w') as f:
             json.dump(registry_data, f, indent=4)
 
-    # 2. Update MongoDB securely using $pull to yank out the specifically matched room
-    col = get_projects_collection()
-    await col.update_one(
-        {
-            "_id": ObjectId(project_id),
-            "selected_diagram_metadata.images.filename": image_filename
-        },
-        {
-            "$pull": {
-                "selected_diagram_metadata.images.$.rooms": {
-                    "$or": [
-                        {"id": room_id},
-                        {"name": room_id}
-                    ]
-                }
-            }
-        }
-    )
+    # 2. Apply delete on MongoDB standalone schemas
+    rooms_coll = get_rooms_collection()
+    diagrams_coll = get_diagrams_collection()
+    
+    # Check if Room exists by ID or name
+    delete_query = {
+        "project": ObjectId(project_id),
+        "$or": [
+            # Check string representation of _id in case room_id is valid 24-char ObjectId
+            {"_id": ObjectId(room_id) if len(room_id) == 24 else room_id},
+            {"room_name": room_id}
+        ]
+    }
+    
+    room_to_del = await rooms_coll.find_one(delete_query)
+    if room_to_del:
+        await rooms_coll.delete_one({"_id": room_to_del["_id"]})
+        # Unlink from parent Diagram document
+        await diagrams_coll.update_one(
+            {"_id": room_to_del["diagram"]},
+            {"$pull": {"rooms": room_to_del["_id"]}}
+        )
+
     return {"ok": True}
+
+
+# ── Room Analysis Orchestration ───────────────────────────────────────────────
+@router.post("/{project_id}/rooms/{room_id}/analyze")
+async def analyze_room(project_id: str, room_id: str, background_tasks: BackgroundTasks):
+    """
+    Trigger the background SAM mask generation pipeline for a specific room.
+    """
+    rooms_coll = get_rooms_collection()
+    # Check if Room exists
+    room_doc = await rooms_coll.find_one({"_id": ObjectId(room_id) if len(room_id) == 24 else room_id, "project": ObjectId(project_id)})
+    
+    if not room_doc:
+        raise HTTPException(status_code=404, detail="Room not found in this project.")
+        
+    # Queue the background process
+    background_tasks.add_task(
+        run_room_analysis_pipeline, 
+        room_id=str(room_doc["_id"]), 
+        project_id=project_id, 
+        room_image_url=room_doc.get("room_image_url", "")
+    )
+    
+    # Initialize state
+    await rooms_coll.update_one(
+        {"_id": room_doc["_id"]},
+        {"$set": {
+            "analysis_status": "pending",
+            "analysis_progress": 0,
+            "analysis_message": "Queued for processing..."
+        }}
+    )
+    
+    return {"ok": True, "message": "Room analysis started in the background."}
+
+
+@router.get("/{project_id}/rooms/{room_id}/analysis-status")
+async def get_room_analysis_status(project_id: str, room_id: str):
+    """
+    Poll the current status of the background analysis pipeline.
+    """
+    rooms_coll = get_rooms_collection()
+    room_doc = await rooms_coll.find_one({"_id": ObjectId(room_id) if len(room_id) == 24 else room_id, "project": ObjectId(project_id)})
+    
+    if not room_doc:
+        raise HTTPException(status_code=404, detail="Room not found.")
+        
+    return {
+        "ok": True,
+        "status": room_doc.get("analysis_status", "idle"),
+        "progress": room_doc.get("analysis_progress", 0),
+        "message": room_doc.get("analysis_message", ""),
+        "masks_polygons_url": room_doc.get("masks_polygons_url", ""),
+        "masks_groups_url": room_doc.get("masks_groups_url", ""),
+        "masks_pkl_url": room_doc.get("masks_pkl_url", "")
+    }

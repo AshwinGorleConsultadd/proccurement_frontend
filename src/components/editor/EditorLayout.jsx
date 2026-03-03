@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import editorData from "../../data/editor_data.json";
 import CanvasEditor from "./CanvasEditor";
 import Sidebar from "./Sidebar";
@@ -9,9 +10,15 @@ import GroupAssignPopover from "./GroupAssignPopover";
 import AssignDrawnMaskDialog from "./AssignDrawnMaskDialog";
 
 export default function EditorLayout() {
+  const { roomId } = useParams();
+  const [bgImageUrl, setBgImageUrl] = useState(null);
+
   // ─── Core state ────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState(() => {
-    const saved = localStorage.getItem("editor_groups");
+    // Try room boundary storage first or fallback
+    const saved = localStorage.getItem(
+      roomId ? `editor_groups_${roomId}` : "editor_groups",
+    );
     const baseGroups = saved ? JSON.parse(saved) : editorData.groups;
 
     const initializedGroups = {};
@@ -25,12 +32,57 @@ export default function EditorLayout() {
   });
 
   const [masks, setMasks] = useState(() => {
-    const saved = localStorage.getItem("editor_masks");
+    const saved = localStorage.getItem(
+      roomId ? `editor_masks_${roomId}` : "editor_masks",
+    );
     return saved ? JSON.parse(saved) : editorData.masks;
   });
   const [selectedMaskIds, setSelectedMaskIds] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [editorMode, setEditorMode] = useState("all");
+
+  useEffect(() => {
+    if (!roomId) return;
+    const fetchRoomData = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/rooms/${roomId}`);
+        if (!res.ok) throw new Error("Failed to fetch room");
+        const roomData = await res.json();
+
+        if (roomData.room_image_url) {
+          setBgImageUrl(`http://localhost:8000${roomData.room_image_url}`);
+        }
+
+        if (roomData.masks_polygons_url) {
+          const masksRes = await fetch(
+            `http://localhost:8000${roomData.masks_polygons_url}`,
+          );
+          if (masksRes.ok) {
+            const data = await masksRes.json();
+
+            const initializedGroups = {};
+            for (const [key, group] of Object.entries(data.groups || {})) {
+              // Only override if not already in localStorage
+              initializedGroups[key] = {
+                ...group,
+                type: group.type || "FF&E",
+              };
+            }
+
+            // Only update state if it's the initial load and no local storage exists
+            const savedGroups = localStorage.getItem(`editor_groups_${roomId}`);
+            const savedMasks = localStorage.getItem(`editor_masks_${roomId}`);
+
+            if (!savedGroups) setGroups(initializedGroups);
+            if (!savedMasks) setMasks(data.masks || []);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching room data:", err);
+      }
+    };
+    fetchRoomData();
+  }, [roomId]);
 
   // ─── UI state ──────────────────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState(null);
@@ -96,8 +148,14 @@ export default function EditorLayout() {
       // Cmd+S / Ctrl+S to save to local storage
       if (ctrlKey && e.key === "s") {
         e.preventDefault();
-        localStorage.setItem("editor_groups", JSON.stringify(groups));
-        localStorage.setItem("editor_masks", JSON.stringify(masks));
+        localStorage.setItem(
+          roomId ? `editor_groups_${roomId}` : "editor_groups",
+          JSON.stringify(groups),
+        );
+        localStorage.setItem(
+          roomId ? `editor_masks_${roomId}` : "editor_masks",
+          JSON.stringify(masks),
+        );
         console.log("State saved to local storage");
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus(null), 2000);
@@ -321,6 +379,7 @@ export default function EditorLayout() {
           onCtrlClickMask={handleCtrlClickMask}
           isDrawMode={isDrawMode}
           onSaveNewMask={handleSaveNewMask}
+          bgImageUrl={bgImageUrl}
         />
       </div>
 

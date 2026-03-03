@@ -55,7 +55,7 @@ export function useProjects() {
             const { api } = await import('../../api/apiClient')
             try {
                 const res = await api.get(`/projects/${projectId}`)
-                const data = res.data?.selected_diagram_metadata ?? res.data
+                const data = res.data?.diagrams ?? res.data?.selected_diagram_metadata ?? res.data
                 const blob = new Blob(
                     [JSON.stringify(data, null, 2)],
                     { type: 'application/json' }

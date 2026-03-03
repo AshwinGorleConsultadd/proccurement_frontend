@@ -28,6 +28,7 @@ function App() {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="editor" element={<EditorLayout />} />
+          <Route path="editor/:roomId" element={<EditorLayout />} />
         </Route>
 
         {/* Project editor — full screen, own sidebar only */}

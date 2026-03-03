@@ -58,6 +58,7 @@ class ProjectOut(BaseModel):
     status:                     str            = "draft"
     source_pdf_path:            Optional[str]  = None
 
+    diagrams:                   Optional[list] = None
     selected_diagram_metadata:  Optional[dict] = None
     selected_image_registry:    Optional[str]  = None
     sectioned_diagram_registry: Optional[str]  = None
