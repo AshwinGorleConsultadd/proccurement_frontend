@@ -14,7 +14,7 @@ from models import sql_models  # Initialize metadata
 from middlewares.cors import add_cors_middleware
 from services.pdf_processing import load_yolo_model, LOCAL_FILE_DB
 
-from routes.budget import router as budget_router
+from routes.budget_mongo import router as budget_router
 from routes.pdf import router as pdf_router
 from routes.floorplan import router as floorplan_router
 from routes.project_sql import router as sql_projects_router

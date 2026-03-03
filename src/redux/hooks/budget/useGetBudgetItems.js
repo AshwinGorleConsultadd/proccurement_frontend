@@ -4,16 +4,20 @@ import { fetchBudgetItems } from '../../actions/budget/budgetActions'
 
 export function useGetBudgetItems() {
     const dispatch = useDispatch()
-    const { items, total, page, pageSize, totalSubtotal, loading, error, search, groupByPage, groupByRoom, section } =
-        useSelector((state) => state.budget)
+    const {
+        projectId, items, total, page, pageSize,
+        totalSubtotal, roomTotals, loading, error,
+        search, groupByPage, groupByRoom, section,
+    } = useSelector((state) => state.budget)
 
     const fetch = useCallback(() => {
-        dispatch(fetchBudgetItems({ section, page, search, groupByPage, groupByRoom }))
-    }, [dispatch, section, page, search, groupByPage, groupByRoom])
+        if (!projectId) return
+        dispatch(fetchBudgetItems({ projectId, section, page, search, groupByPage, groupByRoom }))
+    }, [dispatch, projectId, section, page, search, groupByPage, groupByRoom])
 
     useEffect(() => {
         fetch()
     }, [fetch])
 
-    return { items, total, page, pageSize, totalSubtotal, loading, error, refetch: fetch }
+    return { items, total, page, pageSize, totalSubtotal, roomTotals, loading, error, refetch: fetch }
 }
