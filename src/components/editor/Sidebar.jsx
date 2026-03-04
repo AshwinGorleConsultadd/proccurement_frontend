@@ -20,15 +20,16 @@ export default function Sidebar({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ── Live filter — matches name OR code, case-insensitive ──────────────────
+  // ── Live filter — matches object_name / name / code, case-insensitive ────
   const q = searchQuery.trim().toLowerCase();
   const allGroups = Object.values(groups);
   const filteredGroups = q
     ? allGroups.filter(
-        (g) =>
-          g.name.toLowerCase().includes(q) ||
-          (g.code && g.code.toLowerCase().includes(q)),
-      )
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        (g.object_name && g.object_name.toLowerCase().includes(q)) ||
+        (g.code && g.code.toLowerCase().includes(q)),
+    )
     : allGroups;
 
   return (
@@ -246,8 +247,8 @@ export default function Sidebar({
 
                 const colorStyle = g.color
                   ? {
-                      backgroundColor: `rgb(${g.color[0]}, ${g.color[1]}, ${g.color[2]})`,
-                    }
+                    backgroundColor: `rgb(${g.color[0]}, ${g.color[1]}, ${g.color[2]})`,
+                  }
                   : { backgroundColor: "#ccc" };
 
                 // ── Highlight matching text ─────────────────────────────────
@@ -286,6 +287,7 @@ export default function Sidebar({
                         style={colorStyle}
                       />
                       <div className="flex flex-col min-w-0">
+                        {/* Primary label: object_name (if extracted) or internal name */}
                         <span
                           className={cn(
                             "text-sm leading-tight truncate",
@@ -294,11 +296,19 @@ export default function Sidebar({
                               : "text-gray-600",
                           )}
                         >
-                          {highlight(g.name)}
+                          {g.object_name
+                            ? highlight(g.object_name)
+                            : highlight(g.name)}
                         </span>
-                        {g.code && (
-                          <span className="text-[10px] font-mono text-gray-400 truncate">
+                        {/* Code badge — prominent if extracted */}
+                        {g.code ? (
+                          <span className="text-[10px] font-mono font-semibold text-indigo-600 bg-indigo-50 px-1 py-px rounded truncate w-fit max-w-full mt-0.5">
                             {highlight(g.code)}
+                          </span>
+                        ) : (
+                          /* Show internal id as dim subtitle when no code yet */
+                          <span className="text-[10px] font-mono text-gray-400 truncate">
+                            {g.id}
                           </span>
                         )}
                       </div>

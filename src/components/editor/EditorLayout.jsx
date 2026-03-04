@@ -7,6 +7,7 @@ import GroupDialog from "./GroupDialog";
 import CreateGroupDialog from "./CreateGroupDialog";
 import GroupAssignPopover from "./GroupAssignPopover";
 import AssignDrawnMaskDialog from "./AssignDrawnMaskDialog";
+import ExtractCodesPanel from "./ExtractCodesPanel";
 
 export default function EditorLayout() {
   // ─── Core state ────────────────────────────────────────────────────────────
@@ -42,6 +43,23 @@ export default function EditorLayout() {
   const [changeGroupMode, setChangeGroupMode] = useState(false);
   /** Position + data for the floating group-assign popover; null = hidden */
   const [assignPopover, setAssignPopover] = useState(null); // { x, y }
+
+  // ─── Handle AI-extracted codes ───────────────────────────────────────────
+  const handleCodesExtracted = (enrichedGroups) => {
+    setGroups((prev) => {
+      const merged = { ...prev };
+      for (const [gid, enriched] of Object.entries(enrichedGroups)) {
+        if (merged[gid]) {
+          merged[gid] = {
+            ...merged[gid],
+            object_name: enriched.object_name || merged[gid].object_name || "",
+            code: enriched.code || merged[gid].code || "",
+          };
+        }
+      }
+      return merged;
+    });
+  };
 
   // ─── Drawing mode state ────────────────────────────────────────────────────
   const [isDrawMode, setIsDrawMode] = useState(false);
@@ -267,11 +285,10 @@ export default function EditorLayout() {
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
           <button
             onClick={() => setIsDrawMode(!isDrawMode)}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded shadow-sm border pointer-events-auto transition-colors ${
-              isDrawMode
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded shadow-sm border pointer-events-auto transition-colors ${isDrawMode
                 ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
                 : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-            }`}
+              }`}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -288,6 +305,13 @@ export default function EditorLayout() {
             </svg>
             {isDrawMode ? "Cancel Drawing" : "Draw Mask"}
           </button>
+
+          {/* AI Extract Codes panel */}
+          <ExtractCodesPanel
+            groups={groups}
+            masks={masks}
+            onCodesExtracted={handleCodesExtracted}
+          />
 
           {isDrawMode && (
             <div className="text-xs text-gray-600 bg-white/95 p-2.5 rounded shadow-sm border border-gray-200 pointer-events-auto">

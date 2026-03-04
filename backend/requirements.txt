@@ -10,3 +10,5 @@ numpy
 Pillow
 doclayout-yolo
 motor
+google-genai
+python-dotenv

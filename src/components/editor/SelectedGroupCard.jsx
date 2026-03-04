@@ -120,6 +120,18 @@ export default function SelectedGroupCard({
 
       {/* ── Editable fields ──────────────────────────────────────────────────── */}
       <div className="px-3 pt-2.5 pb-1 space-y-2">
+        {/* AI Object Name (read-only, shown when extracted) */}
+        {group.object_name && (
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-indigo-500">
+              AI Object Name
+            </label>
+            <div className="w-full text-xs px-2 py-1 border border-indigo-100 bg-indigo-50 text-indigo-700 font-medium rounded-sm">
+              {group.object_name}
+            </div>
+          </div>
+        )}
+
         {/* Name */}
         <div className="space-y-0.5">
           <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
