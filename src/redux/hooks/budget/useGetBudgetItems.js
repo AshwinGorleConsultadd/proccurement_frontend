@@ -7,13 +7,13 @@ export function useGetBudgetItems() {
     const {
         projectId, items, total, page, pageSize,
         totalSubtotal, roomTotals, loading, error,
-        search, groupByPage, groupByRoom, section,
+        search, roomFilter, groupByPage, groupByRoom, section,
     } = useSelector((state) => state.budget)
 
     const fetch = useCallback(() => {
         if (!projectId) return
-        dispatch(fetchBudgetItems({ projectId, section, page, search, groupByPage, groupByRoom }))
-    }, [dispatch, projectId, section, page, search, groupByPage, groupByRoom])
+        dispatch(fetchBudgetItems({ projectId, section, page, search, roomFilter, groupByPage, groupByRoom }))
+    }, [dispatch, projectId, section, page, search, roomFilter, groupByPage, groupByRoom])
 
     useEffect(() => {
         fetch()

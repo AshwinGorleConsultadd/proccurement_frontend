@@ -5,8 +5,7 @@ All routes are scoped under /budget/{project_id}.
 """
 from fastapi import APIRouter, HTTPException, Query
 from schemas.budget_mongo import (
-    BudgetItemCreate, BudgetItemUpdate, BudgetItemOut,
-    SubItemCreate, SubItemUpdate, SubItemOut,
+    BudgetItemCreate, BudgetItemUpdate, BudgetItemOut
 )
 import services.budget_service as svc
 
@@ -18,25 +17,24 @@ router = APIRouter(prefix="/budget", tags=["Budget"])
 @router.get("/{project_id}")
 async def list_budget(
     project_id:    str,
-    section:       str  = Query("general"),
     page:          int  = Query(1, ge=1),
     search:        str  = Query(""),
     group_by_room: bool = Query(False),
     group_by_page: bool = Query(False),
+    rooms:         str  = Query(""),
 ):
     return await svc.list_items(
-        project_id, section, search, page, 12, group_by_room, group_by_page
+        project_id, search, page, 12, group_by_room, group_by_page, rooms
     )
 
 
 @router.get("/{project_id}/export")
 async def export_budget(
     project_id:    str,
-    section:       str  = Query("general"),
     group_by_room: bool = Query(False),
     group_by_page: bool = Query(False),
 ):
-    return await svc.export_items(project_id, section, group_by_room, group_by_page)
+    return await svc.export_items(project_id, group_by_room, group_by_page)
 
 
 # ── Item CRUD ─────────────────────────────────────────────────────────────────
@@ -67,7 +65,7 @@ async def delete_budget_item(project_id: str, item_id: str):
 # ── Sub-item CRUD ─────────────────────────────────────────────────────────────
 
 @router.post("/{project_id}/item/{item_id}/subitems", status_code=201)
-async def add_subitem(project_id: str, item_id: str, body: SubItemCreate):
+async def add_subitem(project_id: str, item_id: str, body: BudgetItemCreate):
     result = await svc.add_subitem(item_id, body.model_dump())
     if result is None:
         raise HTTPException(404, "Budget item not found")
@@ -75,7 +73,7 @@ async def add_subitem(project_id: str, item_id: str, body: SubItemCreate):
 
 
 @router.put("/{project_id}/item/{item_id}/subitems/{sub_id}")
-async def update_subitem(project_id: str, item_id: str, sub_id: str, body: SubItemUpdate):
+async def update_subitem(project_id: str, item_id: str, sub_id: str, body: BudgetItemUpdate):
     updates = body.model_dump(exclude_none=True)
     result = await svc.update_subitem(item_id, sub_id, updates)
     if result is None:
@@ -99,3 +97,11 @@ async def detach_subitem(project_id: str, item_id: str, sub_id: str):
     if parent is None:
         raise HTTPException(404, "Item or sub-item not found")
     return {"parent": parent, "new_item": new_item}
+
+@router.put("/{project_id}/item/{item_id}/assign-to/{parent_id}")
+async def assign_to_parent(project_id: str, item_id: str, parent_id: str):
+    ok = await svc.assign_to_parent(item_id, parent_id)
+    if not ok:
+        raise HTTPException(404, "Item or target parent not found")
+    return {"ok": True}
+

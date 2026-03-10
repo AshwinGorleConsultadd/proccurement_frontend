@@ -24,6 +24,7 @@ export default function CanvasEditor({
   onCtrlClickMask, // (maskId, { x, y }) => void — Ctrl+Click in reassign mode
   isDrawMode,
   onSaveNewMask, // (polygonArray) => void
+  onUpdateMaskPosition, // (maskId, dx, dy) => void
   bgImageUrl,
 }) {
   const [image] = useImage(bgImageUrl || defaultFloorImage);
@@ -38,7 +39,7 @@ export default function CanvasEditor({
   const selectionStartRef = useRef(null);
 
   // ── Drawing state ────────────────────────────────────────────────────────
-  const [currentPolygon, setCurrentPolygon] = useState([]);
+  const [currentPolygon, setCurrentPolygon] = useState([]); // Array of {x, y, isCurve}
   const [mousePos, setMousePos] = useState(null);
 
   useEffect(() => {
@@ -52,8 +53,9 @@ export default function CanvasEditor({
     if (!isDrawMode) return;
     const handleKeyDown = (e) => {
       if (e.key === "Enter") {
-        if (currentPolygon.length >= 6) {
-          onSaveNewMask([currentPolygon]);
+        if (currentPolygon.length >= 3) {
+          const flatPoints = generateSmoothPolygon([...currentPolygon], true);
+          onSaveNewMask([flatPoints]);
         }
         setCurrentPolygon([]);
         setMousePos(null);
@@ -62,7 +64,7 @@ export default function CanvasEditor({
         setMousePos(null);
       } else if (e.key === "Backspace" || e.key === "Delete") {
         setCurrentPolygon((prev) =>
-          prev.length >= 2 ? prev.slice(0, -2) : prev,
+          prev.length >= 1 ? prev.slice(0, -1) : prev,
         );
       }
     };
@@ -113,7 +115,7 @@ export default function CanvasEditor({
     const pos = stage.getRelativePointerPosition();
 
     if (isDrawMode && currentPolygon.length > 0) {
-      setMousePos([pos.x, pos.y]);
+      setMousePos({ x: pos.x, y: pos.y });
     }
 
     if (!isSelecting) return;
@@ -228,6 +230,102 @@ export default function CanvasEditor({
     return changeGroupMode ? "#f97316" : "red";
   };
 
+  // Compute Cubic Bezier handles for curve nodes
+  const computeHandles = (rawNodes, close = false) => {
+    const numParams = rawNodes.length;
+    if (numParams === 0) return [];
+
+    const getPrev = (i) =>
+      close
+        ? rawNodes[(i - 1 + numParams) % numParams]
+        : rawNodes[Math.max(i - 1, 0)];
+    const getNext = (i) =>
+      close
+        ? rawNodes[(i + 1) % numParams]
+        : rawNodes[Math.min(i + 1, numParams - 1)];
+
+    return rawNodes.map((n, i) => {
+      if (!n.isCurve) {
+        return {
+          ...n,
+          handleIn: { x: n.x, y: n.y },
+          handleOut: { x: n.x, y: n.y },
+        };
+      }
+
+      const prev = getPrev(i);
+      const next = getNext(i);
+
+      let vx = next.x - prev.x;
+      let vy = next.y - prev.y;
+      const len = Math.sqrt(vx * vx + vy * vy) || 1;
+
+      vx /= len;
+      vy /= len;
+
+      const tension = 0.3; // Magic number for nice smooth curves
+      const dPrev = Math.sqrt(
+        Math.pow(n.x - prev.x, 2) + Math.pow(n.y - prev.y, 2),
+      );
+      const dNext = Math.sqrt(
+        Math.pow(next.x - n.x, 2) + Math.pow(next.y - n.y, 2),
+      );
+
+      return {
+        ...n,
+        handleIn: {
+          x: n.x - vx * dPrev * tension,
+          y: n.y - vy * dPrev * tension,
+        },
+        handleOut: {
+          x: n.x + vx * dNext * tension,
+          y: n.y + vy * dNext * tension,
+        },
+      };
+    });
+  };
+
+  const generateSmoothPolygon = (rawNodes, close = false) => {
+    if (rawNodes.length === 0) return [];
+    if (rawNodes.length === 1) return [rawNodes[0].x, rawNodes[0].y];
+
+    const computedNodes = computeHandles(rawNodes, close);
+    const numParams = computedNodes.length;
+
+    const out = [];
+    out.push(computedNodes[0].x, computedNodes[0].y);
+
+    const numSegments = close ? numParams : numParams - 1;
+    for (let i = 0; i < numSegments; i++) {
+      const p1 = computedNodes[i];
+      const p2 = computedNodes[(i + 1) % numParams];
+
+      if (!p1.isCurve && !p2.isCurve) {
+        // Straight line
+        out.push(p2.x, p2.y);
+      } else {
+        // Cubic Bezier Segment
+        const cp1 = p1.isCurve ? p1.handleOut : { x: p1.x, y: p1.y };
+        const cp2 = p2.isCurve ? p2.handleIn : { x: p2.x, y: p2.y };
+
+        const segmentSteps = 20;
+        for (let t = 1; t <= segmentSteps; t++) {
+          const u = t / segmentSteps;
+          const invU = 1 - u;
+          const b0 = invU * invU * invU;
+          const b1 = 3 * invU * invU * u;
+          const b2 = 3 * invU * u * u;
+          const b3 = u * u * u;
+
+          const x = b0 * p1.x + b1 * cp1.x + b2 * cp2.x + b3 * p2.x;
+          const y = b0 * p1.y + b1 * cp1.y + b2 * cp2.y + b3 * p2.y;
+          out.push(x, y);
+        }
+      }
+    }
+    return out;
+  };
+
   return (
     <Stage
       ref={stageRef}
@@ -245,15 +343,21 @@ export default function CanvasEditor({
         if (isSelecting) e.target.stopDrag();
       }}
       onDragMove={(e) => {
-        if (!isSelecting && !isDrawMode)
+        if (!isSelecting && !isDrawMode && e.target === e.target.getStage()) {
           setPosition({ x: e.target.x(), y: e.target.y() });
+        }
       }}
       onWheel={handleWheel}
       // Background click → deselect all (in reassign mode), or add drawing point
       onClick={(e) => {
         if (isDrawMode) {
-          const pos = e.target.getStage().getRelativePointerPosition();
-          setCurrentPolygon((prev) => [...prev, pos.x, pos.y]);
+          if (e.evt.button === 0) {
+            const pos = e.target.getStage().getRelativePointerPosition();
+            setCurrentPolygon((prev) => [
+              ...prev,
+              { x: pos.x, y: pos.y, isCurve: false },
+            ]);
+          }
           return;
         }
         if (e.target === e.target.getStage() && changeGroupMode) {
@@ -261,6 +365,16 @@ export default function CanvasEditor({
         }
       }}
       onContextMenu={(e) => {
+        if (isDrawMode) {
+          e.evt.preventDefault();
+          const pos = e.target.getStage().getRelativePointerPosition();
+          setCurrentPolygon((prev) => [
+            ...prev,
+            { x: pos.x, y: pos.y, isCurve: true },
+          ]);
+          return;
+        }
+
         e.evt.preventDefault();
         if (selectedMaskIds?.length > 0) {
           setContextMenu({ x: e.evt.clientX, y: e.evt.clientY });
@@ -292,6 +406,26 @@ export default function CanvasEditor({
               strokeWidth={strokeWidth}
               onClick={(e) => handleMaskClick(e, mask)}
               listening={!isDrawMode}
+              draggable={isSelected && !isDrawMode && !changeGroupMode}
+              onDragEnd={(e) => {
+                const dx = e.target.x();
+                const dy = e.target.y();
+                e.target.x(0);
+                e.target.y(0);
+                if (onUpdateMaskPosition) {
+                  onUpdateMaskPosition(mask.id, dx, dy);
+                }
+              }}
+              onMouseEnter={(e) => {
+                if (isSelected && !isDrawMode && !changeGroupMode) {
+                  const container = e.target.getStage().container();
+                  container.style.cursor = "move";
+                }
+              }}
+              onMouseLeave={(e) => {
+                const container = e.target.getStage().container();
+                container.style.cursor = "default";
+              }}
             />
           ));
         })}
@@ -314,39 +448,95 @@ export default function CanvasEditor({
       {/* Drawing Layer */}
       {isDrawMode && (
         <Layer>
-          <Line
-            points={currentPolygon}
-            stroke="#10b981"
-            strokeWidth={3 / scale}
-            closed={false}
-            lineCap="round"
-            lineJoin="round"
-          />
-          {currentPolygon.length > 0 && mousePos && (
+          {currentPolygon.length > 0 && (
             <Line
-              points={[
-                currentPolygon[currentPolygon.length - 2],
-                currentPolygon[currentPolygon.length - 1],
-                mousePos[0],
-                mousePos[1],
-              ]}
+              points={generateSmoothPolygon(
+                mousePos
+                  ? [
+                      ...currentPolygon,
+                      { x: mousePos.x, y: mousePos.y, isCurve: false },
+                    ]
+                  : currentPolygon,
+                false,
+              )}
               stroke="#10b981"
               strokeWidth={3 / scale}
-              dash={[5 / scale, 5 / scale]}
+              closed={false}
+              lineCap="round"
+              lineJoin="round"
             />
           )}
-          {currentPolygon.map((p, i) => {
-            if (i % 2 !== 0) return null;
-            return (
-              <Circle
-                key={i}
-                x={currentPolygon[i]}
-                y={currentPolygon[i + 1]}
-                radius={4 / scale}
-                fill="#10b981"
-              />
-            );
-          })}
+
+          {currentPolygon.map((p, i) => (
+            <Circle
+              key={i}
+              x={p.x}
+              y={p.y}
+              radius={4 / scale}
+              fill={p.isCurve ? "#f59e0b" : "#3b82f6"} // Amber for curve, blue for straight
+              hitStrokeWidth={0}
+            />
+          ))}
+
+          {isDrawMode &&
+            (() => {
+              const previewNodes = mousePos
+                ? [
+                    ...currentPolygon,
+                    { x: mousePos.x, y: mousePos.y, isCurve: false },
+                  ]
+                : currentPolygon;
+              const computedNodes = computeHandles(previewNodes, false);
+              return computedNodes.flatMap((p, i) => {
+                if (!p.isCurve) return [];
+                const items = [];
+                if (p.handleIn) {
+                  items.push(
+                    <Line
+                      key={`hL1-${i}`}
+                      points={[p.x, p.y, p.handleIn.x, p.handleIn.y]}
+                      stroke="#f59e0b"
+                      strokeWidth={1 / scale}
+                      dash={[4 / scale, 4 / scale]}
+                      opacity={0.5}
+                    />,
+                  );
+                  items.push(
+                    <Circle
+                      key={`hC1-${i}`}
+                      x={p.handleIn.x}
+                      y={p.handleIn.y}
+                      radius={2.5 / scale}
+                      fill="#f59e0b"
+                      opacity={0.5}
+                    />,
+                  );
+                }
+                if (p.handleOut) {
+                  items.push(
+                    <Line
+                      key={`hL2-${i}`}
+                      points={[p.x, p.y, p.handleOut.x, p.handleOut.y]}
+                      stroke="#f59e0b"
+                      strokeWidth={1 / scale}
+                      dash={[4 / scale, 4 / scale]}
+                      opacity={0.5}
+                    />,
+                  );
+                  items.push(
+                    <Circle
+                      key={`hC2-${i}`}
+                      x={p.handleOut.x}
+                      y={p.handleOut.y}
+                      radius={2.5 / scale}
+                      fill="#f59e0b"
+                      opacity={0.5}
+                    />,
+                  );
+                }
+                return items;
+              });
+            })()}
         </Layer>
       )}
     </Stage>

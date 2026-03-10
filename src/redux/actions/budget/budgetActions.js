@@ -5,12 +5,13 @@ import { api } from '../../api/apiClient'
 
 export const fetchBudgetItems = createAsyncThunk(
     'budget/fetchItems',
-    async ({ projectId, section, page, search, groupByPage, groupByRoom }, { rejectWithValue }) => {
+    async ({ projectId, section, page, search, roomFilter, groupByPage, groupByRoom }, { rejectWithValue }) => {
         try {
             const params = new URLSearchParams({
                 section: section || 'general',
                 page: page || 1,
                 search: search || '',
+                rooms: roomFilter && roomFilter.length > 0 ? roomFilter.join(",") : '',
                 group_by_page: groupByPage || false,
                 group_by_room: groupByRoom || false,
             })
@@ -107,3 +108,16 @@ export const detachSubItem = createAsyncThunk(
         }
     }
 )
+
+export const assignToParent = createAsyncThunk(
+    'budget/assignToParent',
+    async ({ projectId, itemId, parentId }, { rejectWithValue }) => {
+        try {
+            const res = await api.put(`/budget/${projectId}/item/${itemId}/assign-to/${parentId}`)
+            return res.data
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.detail || err.message)
+        }
+    }
+)
+

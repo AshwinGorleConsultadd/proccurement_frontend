@@ -33,19 +33,19 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
     let prevRoom = null
 
     for (const item of items) {
-        const room = item.room_name || "Unassigned Room"
+        const room = item.room || "Unassigned Room"
 
         if (groupByRoom && room !== prevRoom) {
             if (prevRoom && room_totals[prevRoom] != null) {
                 rows.push({
-                    "Spec No": "", Vendor: "", "Vendor Desc": "", Description: "",
+                    "Spec No": "", Description: "",
                     Room: `${prevRoom} — Total`, Page: "", Qty: "", "Unit Cost": "",
                     Extended: fmtCurrency(room_totals[prevRoom]), Hidden: "",
                 })
             }
             rows.push({
                 "Spec No": `── ${room} ──`,
-                Vendor: "", "Vendor Desc": "", Description: "",
+                Description: "",
                 Room: "", Page: "", Qty: "", "Unit Cost": "", Extended: "", Hidden: "",
             })
             prevRoom = room
@@ -53,10 +53,8 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
 
         rows.push({
             "Spec No": item.spec_no,
-            Vendor: item.vendor,
-            "Vendor Desc": item.vendor_description,
             Description: item.description,
-            Room: item.room_name,
+            Room: item.room,
             Page: item.page_no,
             Qty: item.qty,
             "Unit Cost": fmtCurrency(item.unit_cost),
@@ -64,11 +62,9 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
             Hidden: item.hidden_from_total ? "Yes" : "",
         })
 
-        // Subitems
         for (const sub of item.subitems || []) {
             rows.push({
                 "Spec No": `  ↳ ${sub.spec_no || ""}`,
-                Vendor: sub.vendor, "Vendor Desc": sub.vendor_description,
                 Description: sub.description, Room: "", Page: "",
                 Qty: sub.qty,
                 "Unit Cost": fmtCurrency(sub.unit_cost),
@@ -81,7 +77,7 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
     // Final room subtotal
     if (groupByRoom && prevRoom && room_totals[prevRoom] != null) {
         rows.push({
-            "Spec No": "", Vendor: "", "Vendor Desc": "", Description: "",
+            "Spec No": "", Description: "",
             Room: `${prevRoom} — Total`, Page: "", Qty: "", "Unit Cost": "",
             Extended: fmtCurrency(room_totals[prevRoom]), Hidden: "",
         })
@@ -89,7 +85,7 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
 
     // Grand total row
     rows.push({
-        "Spec No": "", Vendor: "", "Vendor Desc": "", Description: "",
+        "Spec No": "", Description: "",
         Room: "", Page: "", Qty: "", "Unit Cost": "GRAND TOTAL",
         Extended: fmtCurrency(grand_total), Hidden: "",
     })
@@ -138,12 +134,12 @@ export async function exportToPdf(projectId, section, groupByRoom, groupByPage) 
     doc.setTextColor(100)
     doc.text(`Section: ${section}  |  Generated: ${new Date().toLocaleDateString()}  |  Grand Total: ${fmtCurrency(grand_total)}`, 14, 25)
 
-    const head = [["Spec No", "Vendor", "Vendor Desc", "Description", "Room", "Page", "Qty", "Unit Cost", "Extended"]]
+    const head = [["Spec No", "Description", "Room", "Page", "Qty", "Unit Cost", "Extended"]]
     const body = []
     let prevRoom = null
 
     for (const item of items) {
-        const room = item.room_name || "Unassigned Room"
+        const room = item.room || "Unassigned Room"
 
         if (groupByRoom && room !== prevRoom) {
             if (prevRoom && room_totals[prevRoom] != null) {
@@ -159,19 +155,16 @@ export async function exportToPdf(projectId, section, groupByRoom, groupByPage) 
         }
 
         body.push([
-            item.spec_no || "", item.vendor || "", item.vendor_description || "",
-            item.description || "", item.room_name || "",
+            item.spec_no || "", item.description || "", item.room || "",
             item.page_no != null ? String(item.page_no) : "", item.qty || "",
             fmtCurrency(item.unit_cost),
             { content: fmtCurrency(item.extended), styles: item.hidden_from_total ? { textColor: [160, 160, 160], fontStyle: "italic" } : {} },
         ])
 
-        // Subitems
         for (const sub of item.subitems || []) {
             body.push([
                 { content: `  ↳ ${sub.spec_no || ""}`, styles: { textColor: [120, 100, 180] } },
-                sub.vendor || "", sub.vendor_description || "", sub.description || "",
-                "", "", sub.qty || "", fmtCurrency(sub.unit_cost),
+                sub.description || "", "", "", sub.qty || "", fmtCurrency(sub.unit_cost),
                 { content: fmtCurrency(sub.extended), styles: { textColor: [120, 100, 180] } },
             ])
         }

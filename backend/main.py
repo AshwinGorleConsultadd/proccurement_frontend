@@ -49,7 +49,7 @@ def seed_data():
 
 # Initialize DB tables and seed
 Base.metadata.create_all(bind=engine)
-seed_data()
+# seed_data() # Deprecated due to schema changes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

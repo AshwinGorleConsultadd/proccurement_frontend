@@ -9,91 +9,53 @@ from datetime import datetime
 import uuid
 
 
-# ── Sub-item ──────────────────────────────────────────────────────────────────
-
-class SubItemCreate(BaseModel):
-    spec_no:            str   = ""
-    vendor:             str   = "TBD"
-    vendor_description: str   = ""
-    description:        str   = ""
-    qty:                str   = "1 Ea."
-    unit_cost:          Optional[float] = None
-    hidden_from_total:  bool  = False
-
-class SubItemUpdate(BaseModel):
-    spec_no:            Optional[str]   = None
-    vendor:             Optional[str]   = None
-    vendor_description: Optional[str]   = None
-    description:        Optional[str]   = None
-    qty:                Optional[str]   = None
-    unit_cost:          Optional[float] = None
-    hidden_from_total:  Optional[bool]  = None
-
-class SubItemOut(BaseModel):
-    id:                 str
-    spec_no:            str   = ""
-    vendor:             str   = "TBD"
-    vendor_description: str   = ""
-    description:        str   = ""
-    qty:                str   = "1 Ea."
-    unit_cost:          Optional[float] = None
-    extended:           Optional[float] = None
-    hidden_from_total:  bool  = False
-    order_index:        int   = 0
-
 
 # ── Top-level Budget Item ──────────────────────────────────────────────────────
 
 class BudgetItemCreate(BaseModel):
     spec_no:            str   = ""
-    vendor:             str   = "TBD"
-    vendor_description: str   = ""
     description:        str   = ""
-    room_name:          str   = ""
-    room_id:            str   = ""
+    room:               str   = ""
+    project:            str   = ""
     page_no:            Optional[int]   = None
     page_id:            str   = ""
     qty:                str   = "1 Ea."
     unit_cost:          Optional[float] = None
-    section:            str   = "general"
-    pdf_filename:       Optional[str]   = None
     # Ordering hint — insert above/below another item
     insert_relative_to: Optional[str]   = None   # _id string of neighbour
     position:           str   = "below"           # "above" | "below"
+    is_sub_item:        bool  = False
+    created_by:         str   = "user"            # "user" or "system"
 
 class BudgetItemUpdate(BaseModel):
     spec_no:            Optional[str]   = None
-    vendor:             Optional[str]   = None
-    vendor_description: Optional[str]   = None
     description:        Optional[str]   = None
-    room_name:          Optional[str]   = None
-    room_id:            Optional[str]   = None
+    room:               Optional[str]   = None
+    project:            Optional[str]   = None
     page_no:            Optional[int]   = None
     page_id:            Optional[str]   = None
     qty:                Optional[str]   = None
     unit_cost:          Optional[float] = None
-    pdf_filename:       Optional[str]   = None
     hidden_from_total:  Optional[bool]  = None
+    is_sub_item:        Optional[bool]  = None
+    created_by:         Optional[str]   = None
 
 class BudgetItemOut(BaseModel):
     id:                 str   = Field(alias="_id")
-    project_id:         str   = ""
+    project:            str   = ""
     page_id:            str   = ""
-    room_id:            str   = ""
+    room:               str   = ""  # Will be populated with room name or remain ID if unpopulated
     spec_no:            str   = ""
-    vendor:             str   = ""
-    vendor_description: str   = ""
     description:        str   = ""
-    room_name:          str   = ""
     page_no:            Optional[int]   = None
     qty:                str   = ""
     unit_cost:          Optional[float] = None
     extended:           Optional[float] = None
-    section:            str   = "general"
     order_index:        int   = 0
-    pdf_filename:       Optional[str]   = None
     hidden_from_total:  bool  = False
-    subitems:           List[SubItemOut] = []
+    is_sub_item:        bool  = False
+    created_by:         str   = "user"
+    subitems:           List['BudgetItemOut'] = []
     created_at:         Optional[str]   = None
     updated_at:         Optional[str]   = None
 

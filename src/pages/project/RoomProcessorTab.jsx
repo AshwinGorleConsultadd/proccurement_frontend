@@ -15,6 +15,7 @@ import {
   Loader2,
   Check,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { api } from "../../redux/api/apiClient";
 import { useProjects } from "../../redux/hooks/project/useProjects";
@@ -455,20 +456,34 @@ export function RoomProcessorTab({ project }) {
                           );
                         } else if (status === "completed") {
                           return (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full gap-2 text-xs h-7 border-emerald-500/50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(
-                                  `/editor/${room.id || room._id || room.name}`,
-                                );
-                              }}
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              Go to Editor
-                            </Button>
+                            <div className="flex gap-2 w-full">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 gap-1.5 text-xs h-7 border-emerald-500/50 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors px-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(
+                                    `/editor/${room.id || room._id || room.name}`,
+                                  );
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">Go to Editor</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 px-2 h-7 border-violet-500/50 text-violet-600 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+                                title="Reprocess"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleProcessRoom(room.id, room.name);
+                                }}
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           );
                         } else {
                           // Processing (pending/preprocessing/generating_masks/etc)

@@ -3,45 +3,37 @@ from typing import Optional, List
 
 class BudgetItemCreate(BaseModel):
     spec_no:            str   = ""
-    vendor:             str   = "TBD"
-    vendor_description: str   = ""
     description:        str   = ""
-    room_name:          str   = ""
+    room:               str   = ""
+    project:            str   = ""
     page_no:            Optional[int]   = None
     qty:                str   = ""
     unit_cost:          Optional[float] = None
     extended:           Optional[float] = None
-    section:            str   = "general"
     insert_relative_to: Optional[int]   = None
     position:           str   = "below"
-    pdf_filename:       Optional[str]   = None
 
 class BudgetItemUpdate(BaseModel):
     spec_no:            Optional[str]   = None
-    vendor:             Optional[str]   = None
-    vendor_description: Optional[str]   = None
     description:        Optional[str]   = None
-    room_name:          Optional[str]   = None
+    room:               Optional[str]   = None
+    project:            Optional[str]   = None
     page_no:            Optional[int]   = None
     qty:                Optional[str]   = None
     unit_cost:          Optional[float] = None
     extended:           Optional[float] = None
-    pdf_filename:       Optional[str]   = None
 
 class BudgetItemOut(BaseModel):
     id:                 int
     spec_no:            str
-    vendor:             str
-    vendor_description: str
     description:        str
-    room_name:          str
+    room:               str
+    project:            str   = ""
     page_no:            Optional[int]   = None
     qty:                str
     unit_cost:          Optional[float] = None
     extended:           Optional[float] = None
-    section:            str
     order_index:        int
-    pdf_filename:       Optional[str]   = None
     class Config:
         from_attributes = True
 

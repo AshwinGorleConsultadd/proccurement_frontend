@@ -37,10 +37,10 @@ def _serialize(doc: dict) -> dict:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _max_order(project_id: str, section: str) -> int:
+async def _max_order(project_id: str) -> int:
     col = _col()
     cur = col.find(
-        {"project_id": project_id, "section": section},
+        {"project": project_id},
         {"order_index": 1}
     ).sort("order_index", -1).limit(1)
     docs = await cur.to_list(1)
@@ -51,41 +51,99 @@ async def _max_order(project_id: str, section: str) -> int:
 
 async def list_items(
     project_id: str,
-    section: str,
     search: str = "",
     page: int = 1,
     page_size: int = 12,
     group_by_room: bool = False,
     group_by_page: bool = False,
+    rooms_filter: str = "",
 ) -> dict:
+    from db.mongo import get_rooms_collection
+    rooms_coll = get_rooms_collection()
+    
     col = _col()
-    filt: dict = {"project_id": project_id, "section": section}
+    filt: dict = {"project": project_id, "is_sub_item": {"$ne": True}}
     if search:
         filt["spec_no"] = {"$regex": search, "$options": "i"}
+
+    if rooms_filter:
+        # expects a comma-separated string of pure mongoid room IDs
+        rooms_list = [r.strip() for r in rooms_filter.split(",")]
+        # Support fetching budget items which explicitly have no room or match the filter
+        # It's better to just strictly use $in 
+        filt["room"] = {"$in": rooms_list}
 
     total = await col.count_documents(filt)
 
     if group_by_page:
         sort_key = [("page_no", 1), ("order_index", 1)]
     elif group_by_room:
-        sort_key = [("room_name", 1), ("order_index", 1)]
+        sort_key = [("room", 1), ("order_index", 1)]
     else:
         sort_key = [("order_index", 1)]
 
     cursor = col.find(filt).sort(sort_key).skip((page - 1) * page_size).limit(page_size)
     docs = await cursor.to_list(page_size)
-    items = [_serialize(d) for d in docs]
+    
+    # Preload rooms for population
+    room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(d["room"])})
+    if room_ids:
+        rooms = await rooms_coll.find({"_id": {"$in": room_ids}}).to_list(None)
+        room_map = {str(r["_id"]): r for r in rooms}
+        for r in room_map.values():
+            r["_id"] = str(r["_id"])
+    else:
+        room_map = {}
+        
+    for d in docs:
+        if d.get("room") and d["room"] in room_map:
+            d["room_name"] = room_map[d["room"]].get("name", d["room"])
+
+    # Fetch subitems
+    all_subitem_ids = []
+    for d in docs:
+        sub_list = d.get("subitems", [])
+        if sub_list and isinstance(sub_list, list):
+            # some might be dictionaries or strings, we expect strings
+            all_subitem_ids.extend([ObjectId(s) for s in sub_list if ObjectId.is_valid(s)])
+
+    subitems_map = {}
+    if all_subitem_ids:
+        sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
+        for s in sub_docs:
+            if s.get("room") and s["room"] in room_map:
+                s["room_name"] = room_map[s["room"]].get("name", s["room"])
+            subitems_map[str(s["_id"])] = _serialize(s)
+
+    items = []
+    for d in docs:
+        d_serial = _serialize(d)
+        resolved_subitems = []
+        for sid in d.get("subitems", []):
+            if isinstance(sid, str) and sid in subitems_map:
+                resolved_subitems.append(subitems_map[sid])
+        d_serial["subitems"] = resolved_subitems
+        items.append(d_serial)
 
     # Grand total (all non-hidden, not just this page)
-    all_cursor = col.find(filt, {"extended": 1, "hidden_from_total": 1, "room_name": 1})
+    all_cursor = col.find(filt, {"extended": 1, "hidden_from_total": 1, "room": 1})
     all_docs = await all_cursor.to_list(None)
+    
+    # Preload all rooms for totals
+    all_room_ids = list({ObjectId(d["room"]) for d in all_docs if d.get("room") and ObjectId.is_valid(d["room"])})
+    all_room_map = {}
+    if all_room_ids:
+        all_rooms = await rooms_coll.find({"_id": {"$in": all_room_ids}}).to_list(None)
+        all_room_map = {str(r["_id"]): r.get("name", str(r["_id"])) for r in all_rooms}
+
     grand_total = sum(
         (d.get("extended") or 0) for d in all_docs if not d.get("hidden_from_total")
     )
 
     room_totals: dict[str, float] = {}
     for d in all_docs:
-        key = d.get("room_name") or "Unassigned Room"
+        raw_room_id = d.get("room", "")
+        key = str(all_room_map.get(raw_room_id, raw_room_id)) if raw_room_id else "Unassigned Room"
         room_totals[key] = room_totals.get(key, 0.0) + (
             (d.get("extended") or 0) if not d.get("hidden_from_total") else 0.0
         )
@@ -102,37 +160,79 @@ async def list_items(
 
 async def export_items(
     project_id: str,
-    section: str,
     group_by_room: bool = False,
     group_by_page: bool = False,
 ) -> dict:
+    from db.mongo import get_rooms_collection
+    rooms_coll = get_rooms_collection()
+
     col = _col()
-    filt = {"project_id": project_id, "section": section}
+    filt = {"project": project_id, "is_sub_item": {"$ne": True}}
 
     if group_by_page:
         sort = [("page_no", 1), ("order_index", 1)]
     elif group_by_room:
-        sort = [("room_name", 1), ("order_index", 1)]
+        sort = [("room", 1), ("order_index", 1)]
     else:
         sort = [("order_index", 1)]
 
     docs = await col.find(filt).sort(sort).to_list(None)
-    items = [_serialize(d) for d in docs]
+
+    room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(d["room"])})
+    if room_ids:
+        rooms = await rooms_coll.find({"_id": {"$in": room_ids}}).to_list(None)
+        room_map = {str(r["_id"]): r for r in rooms}
+        for r in room_map.values():
+            r["_id"] = str(r["_id"])
+    else:
+        room_map = {}
+        
+    for d in docs:
+        if d.get("room") and d["room"] in room_map:
+            # We preserve the raw room_id for updates! The frontend handles mapping!
+            d["room_name"] = room_map[d["room"]].get("name", d["room"])
+
+    # Resolve subitems properly
+    all_subitem_ids = []
+    for d in docs:
+        sub_list = d.get("subitems", [])
+        if sub_list and isinstance(sub_list, list):
+            all_subitem_ids.extend([ObjectId(s) for s in sub_list if isinstance(s, str) and ObjectId.is_valid(s)])
+
+    subitems_map = {}
+    if all_subitem_ids:
+        sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
+        for s in sub_docs:
+            if s.get("room") and s["room"] in room_map:
+                s["room_name"] = room_map[s["room"]].get("name", s["room"])
+            subitems_map[str(s["_id"])] = _serialize(s)
+            
+    items = []
+    for d in docs:
+        d_serial = _serialize(d)
+        resolved_subitems = []
+        for sid in d.get("subitems", []):
+            if isinstance(sid, str) and sid in subitems_map:
+                resolved_subitems.append(subitems_map[sid])
+        d_serial["subitems"] = resolved_subitems
+        items.append(d_serial)
 
     grand_total = sum((d.get("extended") or 0) for d in docs if not d.get("hidden_from_total"))
     room_totals: dict[str, float] = {}
     for d in docs:
-        key = d.get("room_name") or "Unassigned Room"
+        raw_room_id = d.get("room", "")
+        mapped_room = room_map.get(raw_room_id, {})
+        room_name = mapped_room.get("name", raw_room_id) if isinstance(mapped_room, dict) else raw_room_id
+        key = str(room_name) if raw_room_id else "Unassigned Room"
         room_totals[key] = room_totals.get(key, 0.0) + (
             (d.get("extended") or 0) if not d.get("hidden_from_total") else 0.0
         )
 
-    return {"items": items, "grand_total": grand_total, "room_totals": room_totals, "section": section}
+    return {"items": items, "grand_total": grand_total, "room_totals": room_totals}
 
 
 async def create_item(project_id: str, data: dict) -> dict:
     col = _col()
-    section    = data.get("section", "general")
     ref_id     = data.pop("insert_relative_to", None)
     position   = data.pop("position", "below")
 
@@ -143,34 +243,31 @@ async def create_item(project_id: str, data: dict) -> dict:
             new_index = pivot if position == "above" else pivot + 1
             # Shift everything >= new_index up by 1
             await col.update_many(
-                {"project_id": project_id, "section": section, "order_index": {"$gte": new_index}},
+                {"project": project_id, "order_index": {"$gte": new_index}},
                 {"$inc": {"order_index": 1}},
             )
         else:
-            new_index = await _max_order(project_id, section) + 1
+            new_index = await _max_order(project_id) + 1
     else:
-        new_index = await _max_order(project_id, section) + 1
+        new_index = await _max_order(project_id) + 1
 
     extended = _calc_extended(data.get("qty", "1"), data.get("unit_cost"))
     now = _now()
     doc = {
-        "project_id":         project_id,
+        "project":            project_id,
         "page_id":            data.get("page_id", ""),
-        "room_id":            data.get("room_id", ""),
+        "room":               data.get("room", ""),
         "spec_no":            data.get("spec_no", ""),
-        "vendor":             data.get("vendor", "TBD"),
-        "vendor_description": data.get("vendor_description", ""),
         "description":        data.get("description", ""),
-        "room_name":          data.get("room_name", ""),
         "page_no":            data.get("page_no"),
         "qty":                data.get("qty", "1 Ea."),
         "unit_cost":          data.get("unit_cost"),
         "extended":           extended,
-        "section":            section,
         "order_index":        new_index,
-        "pdf_filename":       data.get("pdf_filename"),
-        "hidden_from_total":  False,
-        "subitems":           [],
+        "hidden_from_total":  data.get("hidden_from_total", False),
+        "is_sub_item":        data.get("is_sub_item", False),
+        "created_by":         data.get("created_by", "user"),
+        "subitems":           data.get("subitems", []),
         "created_at":         now,
         "updated_at":         now,
     }
@@ -184,7 +281,27 @@ async def get_item(item_id: str) -> dict | None:
         return None
     col = _col()
     doc = await col.find_one({"_id": ObjectId(item_id)})
-    return _serialize(doc) if doc else None
+    if not doc:
+        return None
+        
+    doc_serial = _serialize(doc)
+    
+    # Resolve subitems for the single fetched document
+    sub_list = doc_serial.get("subitems", [])
+    if sub_list and isinstance(sub_list, list):
+        sub_ids = [ObjectId(s) for s in sub_list if isinstance(s, str) and ObjectId.is_valid(s)]
+        if sub_ids:
+            sub_docs = await col.find({"_id": {"$in": sub_ids}}).to_list(None)
+            sub_map = {str(s["_id"]): _serialize(s) for s in sub_docs}
+            resolved = []
+            for s in sub_list:
+                if isinstance(s, str) and s in sub_map:
+                    resolved.append(sub_map[s])
+                elif isinstance(s, dict): # robust for old data
+                    resolved.append(s)
+            doc_serial["subitems"] = resolved
+
+    return doc_serial
 
 
 async def update_item(item_id: str, updates: dict) -> dict | None:
@@ -212,13 +329,13 @@ async def delete_item(item_id: str) -> bool:
     if not ObjectId.is_valid(item_id):
         return False
     col = _col()
-    doc = await col.find_one({"_id": ObjectId(item_id)}, {"order_index": 1, "project_id": 1, "section": 1})
+    doc = await col.find_one({"_id": ObjectId(item_id)}, {"order_index": 1, "project": 1})
     if not doc:
         return False
     await col.delete_one({"_id": ObjectId(item_id)})
     # Compact order_index gap
     await col.update_many(
-        {"project_id": doc["project_id"], "section": doc["section"], "order_index": {"$gt": doc["order_index"]}},
+        {"project": doc["project"], "order_index": {"$gt": doc["order_index"]}},
         {"$inc": {"order_index": -1}},
     )
     return True
@@ -230,81 +347,69 @@ async def add_subitem(item_id: str, data: dict) -> dict | None:
     if not ObjectId.is_valid(item_id):
         return None
     col = _col()
-    doc = await col.find_one({"_id": ObjectId(item_id)})
-    if not doc:
+    parent = await col.find_one({"_id": ObjectId(item_id)})
+    if not parent:
         return None
 
-    subitems = doc.get("subitems", [])
-    unit_cost = data.get("unit_cost")
-    extended  = _calc_extended(data.get("qty", "1"), unit_cost)
+    # Determine order index relative to other subitems
+    subitems = parent.get("subitems", [])
+    if subitems and isinstance(subitems, list) and len(subitems) > 0:
+        # If it contains dictionaries from old format, ignore or fetch them.
+        pass
+        
+    data["is_sub_item"] = True
+    # For now, create the subitem as a brand new item in the flat collection
+    new_subitem = await create_item(parent["project"], data)
+    new_subitem_id = str(new_subitem["_id"])
 
-    sub = {
-        "_id":                str(uuid.uuid4()),
-        "spec_no":            data.get("spec_no", ""),
-        "vendor":             data.get("vendor", "TBD"),
-        "vendor_description": data.get("vendor_description", ""),
-        "description":        data.get("description", ""),
-        "qty":                data.get("qty", "1 Ea."),
-        "unit_cost":          unit_cost,
-        "extended":           extended,
-        "hidden_from_total":  data.get("hidden_from_total", False),
-        "order_index":        len(subitems),
-    }
-    subitems.append(sub)
+    # Make old dictionaries backwards compatible gracefully
+    cleaned_subitems = [s for s in subitems if isinstance(s, str)]
+    cleaned_subitems.append(new_subitem_id)
+    
     await col.update_one(
         {"_id": ObjectId(item_id)},
-        {"$set": {"subitems": subitems, "updated_at": _now()}},
+        {"$set": {"subitems": cleaned_subitems, "updated_at": _now()}},
     )
     doc = await col.find_one({"_id": ObjectId(item_id)})
-    return _serialize(doc)
+    return await get_item(item_id)  # fetch populated
 
 
 async def update_subitem(item_id: str, sub_id: str, updates: dict) -> dict | None:
-    if not ObjectId.is_valid(item_id):
+    if not ObjectId.is_valid(item_id) or not ObjectId.is_valid(sub_id):
         return None
     col = _col()
-    doc = await col.find_one({"_id": ObjectId(item_id)})
-    if not doc:
+    parent = await col.find_one({"_id": ObjectId(item_id)})
+    if not parent:
         return None
 
-    subitems = doc.get("subitems", [])
-    for sub in subitems:
-        if sub["_id"] == sub_id:
-            for k, v in updates.items():
-                if v is not None:
-                    sub[k] = v
-            sub["extended"] = _calc_extended(sub.get("qty", "1"), sub.get("unit_cost"))
-            break
-    else:
-        return None
+    # update the actual item doc
+    await update_item(sub_id, updates)
+    return await get_item(item_id)
 
-    await col.update_one(
-        {"_id": ObjectId(item_id)},
-        {"$set": {"subitems": subitems, "updated_at": _now()}},
-    )
-    doc = await col.find_one({"_id": ObjectId(item_id)})
-    return _serialize(doc)
+
 
 
 async def delete_subitem(item_id: str, sub_id: str) -> dict | None:
-    if not ObjectId.is_valid(item_id):
+    if not ObjectId.is_valid(item_id) or not ObjectId.is_valid(sub_id):
         return None
     col = _col()
-    doc = await col.find_one({"_id": ObjectId(item_id)})
-    if not doc:
+    parent = await col.find_one({"_id": ObjectId(item_id)})
+    if not parent:
         return None
 
-    subitems = [s for s in doc.get("subitems", []) if s["_id"] != sub_id]
-    # Re-index order_index
-    for i, s in enumerate(subitems):
-        s["order_index"] = i
-
+    subitems = parent.get("subitems", [])
+    if sub_id in subitems:
+        subitems.remove(sub_id)
+        
     await col.update_one(
         {"_id": ObjectId(item_id)},
         {"$set": {"subitems": subitems, "updated_at": _now()}},
     )
-    doc = await col.find_one({"_id": ObjectId(item_id)})
-    return _serialize(doc)
+    # Actually delete the subitem completely
+    await delete_item(sub_id)
+    return await get_item(item_id)
+
+
 
 
 async def detach_subitem(item_id: str, sub_id: str) -> tuple[dict | None, dict | None]:
@@ -319,44 +424,62 @@ async def detach_subitem(item_id: str, sub_id: str) -> tuple[dict | None, dict |
     if not parent:
         return None, None
 
-    target_sub = None
+    target_sub_id = None
     remaining = []
     for s in parent.get("subitems", []):
-        if s["_id"] == sub_id:
-            target_sub = s
+        if s == sub_id:
+            target_sub_id = s
         else:
             remaining.append(s)
 
-    if not target_sub:
+    if not target_sub_id:
         return None, None
-
-    # Re-index remaining
-    for i, s in enumerate(remaining):
-        s["order_index"] = i
 
     await col.update_one(
         {"_id": ObjectId(item_id)},
         {"$set": {"subitems": remaining, "updated_at": _now()}},
     )
 
-    # Create new top-level item from the subitem
-    new_data = {
-        "spec_no":            target_sub.get("spec_no", ""),
-        "vendor":             target_sub.get("vendor", "TBD"),
-        "vendor_description": target_sub.get("vendor_description", ""),
-        "description":        target_sub.get("description", ""),
-        "qty":                target_sub.get("qty", "1 Ea."),
-        "unit_cost":          target_sub.get("unit_cost"),
-        "page_id":            parent.get("page_id", ""),
-        "room_id":            parent.get("room_id", ""),
-        "room_name":          parent.get("room_name", ""),
-        "page_no":            parent.get("page_no"),
-        "section":            parent.get("section", "general"),
-        "pdf_filename":       parent.get("pdf_filename"),
-        "insert_relative_to": item_id,
-        "position":           "below",
-    }
-    new_item = await create_item(parent["project_id"], new_data)
+    # Detach by removing is_sub_item flag and positioning it below parent
+    parent_index = parent.get("order_index", 0)
+    await col.update_many(
+        {"project": parent["project"], "order_index": {"$gt": parent_index}},
+        {"$inc": {"order_index": 1}},
+    )
+    
+    await col.update_one(
+        {"_id": ObjectId(target_sub_id)},
+        {"$set": {"is_sub_item": False, "order_index": parent_index + 1}}
+    )
 
     updated_parent = await get_item(item_id)
-    return updated_parent, new_item
+    new_top = await get_item(target_sub_id)
+    return updated_parent, new_top
+
+
+async def assign_to_parent(item_id: str, parent_id: str) -> bool:
+    if not ObjectId.is_valid(item_id) or not ObjectId.is_valid(parent_id):
+        return False
+    col = _col()
+    item = await col.find_one({"_id": ObjectId(item_id)})
+    parent = await col.find_one({"_id": ObjectId(parent_id)})
+    if not item or not parent:
+        return False
+
+    # Pull from any existing parent
+    await col.update_many(
+        {"subitems": item_id},
+        {"$pull": {"subitems": item_id}}
+    )
+    # Add to new parent
+    await col.update_one(
+        {"_id": ObjectId(parent_id)},
+        {"$addToSet": {"subitems": item_id}, "$set": {"updated_at": _now()}}
+    )
+    # Mark as subitem
+    await col.update_one(
+        {"_id": ObjectId(item_id)},
+        {"$set": {"is_sub_item": True, "updated_at": _now()}}
+    )
+    return True
+

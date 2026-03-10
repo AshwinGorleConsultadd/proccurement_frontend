@@ -99,6 +99,7 @@ export default function EditorLayout() {
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [pendingMaskPolygons, setPendingMaskPolygons] = useState(null);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saved'
+  const [clipboardMasks, setClipboardMasks] = useState([]);
 
   // ─── Undo / Redo ──────────────────────────────────────────────────────────
   const [history, setHistory] = useState([{ masks, groups }]);
@@ -143,6 +144,50 @@ export default function EditorLayout() {
       if (ctrlKey && (e.key === "Z" || (e.key === "z" && e.shiftKey))) {
         e.preventDefault();
         redo();
+      }
+
+      // Cmd+C / Ctrl+C
+      if (ctrlKey && e.key === "c") {
+        e.preventDefault();
+        const toCopy = masks.filter((m) => selectedMaskIds.includes(m.id));
+        if (toCopy.length > 0) {
+          setClipboardMasks(JSON.parse(JSON.stringify(toCopy)));
+          setSaveStatus("copied");
+          setTimeout(() => setSaveStatus(null), 1500);
+        }
+      }
+
+      // Cmd+V / Ctrl+V
+      if (ctrlKey && e.key === "v") {
+        e.preventDefault();
+        if (clipboardMasks.length > 0) {
+          const newSelectedIds = [];
+          const offset = 20;
+
+          const updatedClipboard = clipboardMasks.map((mask) => {
+            const newId = `mask_${Date.now()}_${Math.random()
+              .toString(36)
+              .substr(2, 5)}`;
+            newSelectedIds.push(newId);
+
+            const newPolygons = mask.polygons.map((poly) => {
+              const flatPoly = poly.flat();
+              const res = [];
+              for (let i = 0; i < flatPoly.length; i += 2) {
+                res.push(flatPoly[i] + offset, flatPoly[i + 1] + offset);
+              }
+              return res;
+            });
+
+            return { ...mask, id: newId, polygons: newPolygons };
+          });
+
+          const newMasks = [...masks, ...updatedClipboard];
+          setMasks(newMasks);
+          setSelectedMaskIds(newSelectedIds);
+          setClipboardMasks(updatedClipboard);
+          pushToHistory(newMasks, groups);
+        }
       }
 
       // Cmd+S / Ctrl+S to save to local storage
@@ -211,6 +256,23 @@ export default function EditorLayout() {
     setMasks(newMasks);
     setSelectedMaskIds([]);
     setAssignPopover(null);
+    pushToHistory(newMasks, groups);
+  };
+
+  const handleUpdateMaskPosition = (maskId, dx, dy) => {
+    const newMasks = masks.map((mask) => {
+      if (mask.id !== maskId) return mask;
+      const newPolygons = mask.polygons.map((poly) => {
+        const flatPoly = poly.flat();
+        const res = [];
+        for (let i = 0; i < flatPoly.length; i += 2) {
+          res.push(flatPoly[i] + dx, flatPoly[i + 1] + dy);
+        }
+        return res;
+      });
+      return { ...mask, polygons: newPolygons };
+    });
+    setMasks(newMasks);
     pushToHistory(newMasks, groups);
   };
 
@@ -283,6 +345,32 @@ export default function EditorLayout() {
     pushToHistory(newMasks, newGroups);
   };
 
+  /**
+   * Delete all groups that currently have no masks assigned to them.
+   */
+  const handleDeleteEmptyGroups = () => {
+    const groupIdsWithMasks = new Set(
+      masks.map((m) => m.group_id).filter(Boolean),
+    );
+    const newGroups = { ...groups };
+    let hasDeletions = false;
+
+    Object.keys(groups).forEach((id) => {
+      if (!groupIdsWithMasks.has(id)) {
+        delete newGroups[id];
+        hasDeletions = true;
+      }
+    });
+
+    if (hasDeletions) {
+      setGroups(newGroups);
+      if (selectedGroupId && !newGroups[selectedGroupId]) {
+        setSelectedGroupId(null);
+      }
+      pushToHistory(masks, newGroups);
+    }
+  };
+
   const handleMaskClickFromSidebar = (maskId) => {
     setSelectedMaskIds([maskId]);
     setEditorMode("group");
@@ -309,6 +397,7 @@ export default function EditorLayout() {
         onCreateGroup={() => setCreateGroupDialogOpen(true)}
         onUpdateGroup={handleGroupUpdated}
         onDeleteGroup={handleDeleteGroup}
+        onDeleteEmptyGroups={handleDeleteEmptyGroups}
         onMaskClick={handleMaskClickFromSidebar}
       />
 
@@ -352,7 +441,10 @@ export default function EditorLayout() {
               <p className="font-medium text-gray-800 mb-1">Drawing Actions:</p>
               <ul className="list-disc leading-snug space-y-0.5 ml-4">
                 <li>
-                  <strong>Click</strong> to place points.
+                  <strong>Left Click</strong> to add a straight corner.
+                </li>
+                <li>
+                  <strong>Right Click</strong> to add a smooth curve point.
                 </li>
                 <li>
                   Press <strong>Enter</strong> to finish mask.
@@ -379,6 +471,7 @@ export default function EditorLayout() {
           onCtrlClickMask={handleCtrlClickMask}
           isDrawMode={isDrawMode}
           onSaveNewMask={handleSaveNewMask}
+          onUpdateMaskPosition={handleUpdateMaskPosition}
           bgImageUrl={bgImageUrl}
         />
       </div>
@@ -434,7 +527,7 @@ export default function EditorLayout() {
       )}
 
       {/* ── Save Notification ────────────────────────────────────────────── */}
-      {saveStatus === "saved" && (
+      {saveStatus && (
         <div className="absolute bottom-6 right-6 z-[100] bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -448,7 +541,11 @@ export default function EditorLayout() {
           >
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          <span className="text-sm font-medium">Saved to local storage</span>
+          <span className="text-sm font-medium">
+            {saveStatus === "copied"
+              ? "Copied to clipboard"
+              : "Saved to local storage"}
+          </span>
         </div>
       )}
     </div>

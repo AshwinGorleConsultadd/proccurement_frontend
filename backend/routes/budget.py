@@ -7,16 +7,16 @@ import re
 
 router = APIRouter(prefix="/budget", tags=["Budget"])
 
-@router.get("/{section}")
+@router.get("/{project}")
 def get_budget(
-    section:       str,
+    project:       str,
     page:          int  = Query(1, ge=1),
     search:        str  = Query(""),
     group_by_page: bool = Query(False),
     group_by_room: bool = Query(False),
     db: Session = Depends(get_db)
 ):
-    q = db.query(BudgetItem).filter(BudgetItem.section == section)
+    q = db.query(BudgetItem).filter(BudgetItem.project == project)
     if search:
         q = q.filter(BudgetItem.spec_no.ilike(f"%{search}%"))
     total          = q.count()
@@ -24,7 +24,7 @@ def get_budget(
     if group_by_page:
         q = q.order_by(BudgetItem.page_no, BudgetItem.order_index)
     elif group_by_room:
-        q = q.order_by(BudgetItem.room_name, BudgetItem.order_index)
+        q = q.order_by(BudgetItem.room, BudgetItem.order_index)
     else:
         q = q.order_by(BudgetItem.order_index)
     page_size = 12
@@ -45,21 +45,20 @@ def create_budget_item(item: BudgetItemCreate, db: Session = Depends(get_db)):
             raise HTTPException(404, "Reference item not found")
         new_index = ref.order_index if item.position == "above" else ref.order_index + 1
         db.query(BudgetItem).filter(
-            BudgetItem.section == (item.section or ref.section),
+            BudgetItem.project == (item.project or ref.project),
             BudgetItem.order_index >= new_index
         ).update({"order_index": BudgetItem.order_index + 1})
         db.flush()
     else:
-        mx = db.query(BudgetItem).filter(BudgetItem.section == item.section)\
+        mx = db.query(BudgetItem).filter(BudgetItem.project == item.project)\
                .order_by(BudgetItem.order_index.desc()).first()
         new_index = (mx.order_index + 1) if mx else 0
 
     new_item = BudgetItem(
-        spec_no=item.spec_no, vendor=item.vendor,
-        vendor_description=item.vendor_description, description=item.description,
-        room_name=item.room_name, page_no=item.page_no, qty=item.qty,
+        spec_no=item.spec_no, description=item.description,
+        room=item.room, project=item.project, page_no=item.page_no, qty=item.qty,
         unit_cost=item.unit_cost, extended=item.extended,
-        section=item.section, order_index=new_index, pdf_filename=item.pdf_filename,
+        order_index=new_index,
     )
     db.add(new_item); db.commit(); db.refresh(new_item)
     return BudgetItemOut.model_validate(new_item)
@@ -86,10 +85,10 @@ def delete_budget_item(item_id: int, db: Session = Depends(get_db)):
     db_item = db.query(BudgetItem).filter(BudgetItem.id == item_id).first()
     if not db_item:
         raise HTTPException(404, "Item not found")
-    section, deleted_index = db_item.section, db_item.order_index
+    project, deleted_index = db_item.project, db_item.order_index
     db.delete(db_item); db.flush()
     db.query(BudgetItem).filter(
-        BudgetItem.section == section,
+        BudgetItem.project == project,
         BudgetItem.order_index > deleted_index
     ).update({"order_index": BudgetItem.order_index - 1})
     db.commit()

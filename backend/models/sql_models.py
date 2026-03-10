@@ -5,17 +5,14 @@ class BudgetItem(Base):
     __tablename__ = "budget_items"
     id                = Column(Integer, primary_key=True, index=True)
     spec_no           = Column(String,  default="")
-    vendor            = Column(String,  default="TBD")
-    vendor_description= Column(String,  default="")
     description       = Column(String,  default="")
-    room_name         = Column(String,  default="")
+    room              = Column(String,  default="")
+    project           = Column(String,  default="")
     page_no           = Column(Integer, nullable=True)
     qty               = Column(String,  default="")
     unit_cost         = Column(Float,   nullable=True)
     extended          = Column(Float,   nullable=True)
-    section           = Column(String,  default="general")
     order_index       = Column(Integer, index=True, default=0)
-    pdf_filename      = Column(String,  nullable=True)
 
 class PdfDocument(Base):
     __tablename__ = "pdf_documents"
