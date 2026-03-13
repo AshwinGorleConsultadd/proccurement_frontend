@@ -432,31 +432,44 @@ export function RoomProcessorTab({ project }) {
                           ? local.progress
                           : room.analysis_progress || 0;
 
-                        if (
-                          status === "idle" ||
-                          status === "error" ||
-                          !status
-                        ) {
-                          return (
-                            <Button
-                              size="sm"
-                              className={`w-full gap-2 text-xs h-7 ${status === "error" ? "bg-red-600 hover:bg-red-700" : "bg-violet-600 hover:bg-violet-700"}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleProcessRoom(room.id, room.name);
-                              }}
-                            >
-                              {status === "error" ? (
-                                <XCircle className="h-3.5 w-3.5" />
-                              ) : (
-                                <Cpu className="h-3.5 w-3.5" />
-                              )}
-                              {status === "error" ? "Retry" : "Process"}
-                            </Button>
-                          );
-                        } else if (status === "completed") {
-                          return (
-                            <div className="flex gap-2 w-full">
+                        const reprocessButton = (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 px-2 h-7 border-violet-500/50 text-violet-600 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+                            title="Reprocess"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleProcessRoom(room.id, room.name);
+                            }}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </Button>
+                        );
+
+                        return (
+                          <div className="flex gap-2 w-full items-center">
+                            {status === "idle" ||
+                            status === "error" ||
+                            !status ? (
+                              <Button
+                                size="sm"
+                                className={`flex-1 gap-2 text-xs h-7 ${status === "error" ? "bg-red-600 hover:bg-red-700" : "bg-violet-600 hover:bg-violet-700"}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleProcessRoom(room.id, room.name);
+                                }}
+                              >
+                                {status === "error" ? (
+                                  <XCircle className="h-3.5 w-3.5 shrink-0" />
+                                ) : (
+                                  <Cpu className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                <span className="truncate">
+                                  {status === "error" ? "Retry" : "Process"}
+                                </span>
+                              </Button>
+                            ) : status === "completed" ? (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -471,41 +484,27 @@ export function RoomProcessorTab({ project }) {
                                 <Check className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">Go to Editor</span>
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="shrink-0 px-2 h-7 border-violet-500/50 text-violet-600 hover:text-violet-700 hover:bg-violet-50 transition-colors"
-                                title="Reprocess"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleProcessRoom(room.id, room.name);
-                                }}
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          );
-                        } else {
-                          // Processing (pending/preprocessing/generating_masks/etc)
-                          return (
-                            <div className="flex flex-col gap-1 w-full justify-center">
-                              <div className="flex items-center gap-2 justify-between px-1">
-                                <span className="text-[10px] uppercase font-mono text-muted-foreground truncate">
-                                  {status.replace("_", " ")}
-                                </span>
-                                <span className="text-[10px] font-mono font-medium">
-                                  {progress}%
-                                </span>
+                            ) : (
+                              <div className="flex flex-col gap-1 flex-1 justify-center min-w-0">
+                                <div className="flex items-center gap-2 justify-between px-1">
+                                  <span className="text-[10px] uppercase font-mono text-muted-foreground truncate">
+                                    {status.replace("_", " ")}
+                                  </span>
+                                  <span className="text-[10px] font-mono font-medium">
+                                    {progress}%
+                                  </span>
+                                </div>
+                                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-violet-500 transition-all duration-300"
+                                    style={{ width: `${progress}%` }}
+                                  />
+                                </div>
                               </div>
-                              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-violet-500 transition-all duration-300"
-                                  style={{ width: `${progress}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        }
+                            )}
+                            {reprocessButton}
+                          </div>
+                        );
                       })()}
                     </div>
                   </div>

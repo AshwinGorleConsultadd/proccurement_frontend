@@ -54,3 +54,40 @@ async def get_room(room_id: str):
     room_doc["diagram"] = str(room_doc.get("diagram", ""))
     room_doc["project"] = str(room_doc.get("project", ""))
     return room_doc
+
+class MasksUpdate(BaseModel):
+    masks: list
+    groups: dict
+
+@router.put("/{room_id}/masks")
+async def update_room_masks(room_id: str, body: MasksUpdate):
+    """
+    Overwrites the masks_polygons.json file for a given room.
+    """
+    import os, json
+    from services.project_service import LOCAL_FILE_DB
+
+    room_doc = await get_room(room_id)
+    project_id = room_doc.get("project")
+    
+    if not project_id:
+        raise HTTPException(status_code=400, detail="Room does not have a valid project ID.")
+
+    # Construct the path to where the masks_polygons.json is stored
+    room_output_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms", str(room_id), "analysis")
+    masks_polygons_json_path = os.path.join(room_output_dir, "masks_polygons.json")
+
+    if not os.path.exists(room_output_dir):
+        os.makedirs(room_output_dir, exist_ok=True)
+
+    data_to_save = {
+        "groups": body.groups,
+        "masks": body.masks
+    }
+
+    try:
+        with open(masks_polygons_json_path, 'w') as f:
+            json.dump(data_to_save, f, indent=4)
+        return {"ok": True, "message": "Masks and groups successfully persisted."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write file: {e}")

@@ -18,6 +18,7 @@ export default function Sidebar({
   onDeleteGroup, // (groupId) => void
   onDeleteEmptyGroups, // () => void
   onMaskClick,
+  onPersist, // () => void
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -38,6 +39,20 @@ export default function Sidebar({
       <div className="p-4 border-b">
         <div className="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
           <span>Editor Mode</span>
+          <button
+            onClick={onPersist}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 border border-emerald-200 rounded shadow-sm transition-colors text-[11px] font-bold tracking-wide uppercase"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="w-3.5 h-3.5"
+            >
+              <path d="M2.5 3A1.5 1.5 0 0 1 4 1.5h8A1.5 1.5 0 0 1 13.5 3v10a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 13V3Zm10-1.5H4a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V3a.5.5 0 0 0-.5-.5ZM7 8.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1-.75-.75Zm0 2.5a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1-.75-.75ZM4.75 8A.75.75 0 0 1 5.5 7.25h.5a.75.75 0 0 1 0 1.5h-.5A.75.75 0 0 1 4.75 8Zm0 2.5a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 0 1.5h-.5a.75.75 0 0 1-.75-.75Z" />
+            </svg>
+            Persist
+          </button>
         </div>
 
         <div className="flex bg-gray-100 p-1 border border-gray-200">

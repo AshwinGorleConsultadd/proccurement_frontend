@@ -5,6 +5,8 @@ import {
   Image as KonvaImage,
   Rect,
   Circle,
+  Group,
+  Transformer,
 } from "react-konva";
 import { useState, useRef, useEffect } from "react";
 import useImage from "use-image";
@@ -25,10 +27,13 @@ export default function CanvasEditor({
   isDrawMode,
   onSaveNewMask, // (polygonArray) => void
   onUpdateMaskPosition, // (maskId, dx, dy) => void
+  onUpdateMaskPolygons, // (maskId, newPolygons) => void
   bgImageUrl,
 }) {
   const [image] = useImage(bgImageUrl || defaultFloorImage);
   const stageRef = useRef(null);
+  const trRef = useRef(null);
+  const maskRefs = useRef({});
 
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -41,6 +46,20 @@ export default function CanvasEditor({
   // ── Drawing state ────────────────────────────────────────────────────────
   const [currentPolygon, setCurrentPolygon] = useState([]); // Array of {x, y, isCurve}
   const [mousePos, setMousePos] = useState(null);
+
+  useEffect(() => {
+    if (trRef.current) {
+      if (changeGroupMode || isDrawMode) {
+        trRef.current.nodes([]);
+      } else {
+        const nodes = (selectedMaskIds || [])
+          .map((id) => maskRefs.current[id])
+          .filter(Boolean);
+        trRef.current.nodes(nodes);
+        trRef.current.getLayer().batchDraw();
+      }
+    }
+  }, [selectedMaskIds, masks, changeGroupMode, isDrawMode]);
 
   useEffect(() => {
     if (!isDrawMode) {
@@ -396,24 +415,51 @@ export default function CanvasEditor({
           const strokeColor = getMaskStroke(isSelected);
           const strokeWidth = isSelected ? 3 : 1;
 
-          return mask.polygons.map((polygon, idx) => (
-            <Line
-              key={`${mask.id}-${idx}`}
-              points={polygon.flat()}
-              closed
-              fill={fillColor}
-              stroke={strokeColor}
-              strokeWidth={strokeWidth}
-              onClick={(e) => handleMaskClick(e, mask)}
-              listening={!isDrawMode}
+          return (
+            <Group
+              key={`mask-group-${mask.id}`}
+              name={`mask-group-${mask.id}`}
+              ref={(node) => {
+                maskRefs.current[mask.id] = node;
+              }}
               draggable={isSelected && !isDrawMode && !changeGroupMode}
+              onClick={(e) => handleMaskClick(e, mask)}
               onDragEnd={(e) => {
-                const dx = e.target.x();
-                const dy = e.target.y();
-                e.target.x(0);
-                e.target.y(0);
+                const node = maskRefs.current[mask.id];
+                if (!node) return;
+                const dx = node.x();
+                const dy = node.y();
+                node.x(0);
+                node.y(0);
                 if (onUpdateMaskPosition) {
                   onUpdateMaskPosition(mask.id, dx, dy);
+                }
+              }}
+              onTransformEnd={(e) => {
+                const node = maskRefs.current[mask.id];
+                if (!node) return;
+                const transform = node.getTransform();
+                const newPolygons = mask.polygons.map((poly) => {
+                  const flatPoly = poly.flat();
+                  const res = [];
+                  for (let i = 0; i < flatPoly.length; i += 2) {
+                    const pt = { x: flatPoly[i], y: flatPoly[i + 1] };
+                    const newPt = transform.point(pt);
+                    res.push(newPt.x, newPt.y);
+                  }
+                  return res;
+                });
+
+                node.x(0);
+                node.y(0);
+                node.scaleX(1);
+                node.scaleY(1);
+                node.rotation(0);
+                node.skewX(0);
+                node.skewY(0);
+
+                if (onUpdateMaskPolygons) {
+                  onUpdateMaskPolygons(mask.id, newPolygons);
                 }
               }}
               onMouseEnter={(e) => {
@@ -426,8 +472,20 @@ export default function CanvasEditor({
                 const container = e.target.getStage().container();
                 container.style.cursor = "default";
               }}
-            />
-          ));
+            >
+              {mask.polygons.map((polygon, idx) => (
+                <Line
+                  key={`${mask.id}-${idx}`}
+                  points={polygon.flat()}
+                  closed
+                  fill={fillColor}
+                  stroke={strokeColor}
+                  strokeWidth={strokeWidth}
+                  listening={!isDrawMode}
+                />
+              ))}
+            </Group>
+          );
         })}
 
         {/* Shift-drag selection rectangle */}
@@ -441,6 +499,22 @@ export default function CanvasEditor({
             stroke="#3b82f6"
             strokeWidth={1 / scale}
             listening={false}
+          />
+        )}
+
+        {/* Transformer (bounding box + rotation handles) */}
+        {!isDrawMode && !changeGroupMode && (
+          <Transformer
+            ref={trRef}
+            flipEnabled={false}
+            borderDash={[5, 5]}
+            rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+            boundBoxFunc={(oldBox, newBox) => {
+              if (Math.abs(newBox.width) < 5 || Math.abs(newBox.height) < 5) {
+                return oldBox;
+              }
+              return newBox;
+            }}
           />
         )}
       </Layer>

@@ -216,7 +216,7 @@ export default function EditorLayout() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [historyIndex, history, selectedMaskIds, groups, masks]);
+  }, [historyIndex, history, selectedMaskIds, groups, masks, clipboardMasks]);
 
   // ─── Selection helpers ────────────────────────────────────────────────────
   /**
@@ -272,6 +272,14 @@ export default function EditorLayout() {
       });
       return { ...mask, polygons: newPolygons };
     });
+    setMasks(newMasks);
+    pushToHistory(newMasks, groups);
+  };
+
+  const handleUpdateMaskPolygons = (maskId, newPolygons) => {
+    const newMasks = masks.map((mask) =>
+      mask.id === maskId ? { ...mask, polygons: newPolygons } : mask,
+    );
     setMasks(newMasks);
     pushToHistory(newMasks, groups);
   };
@@ -382,6 +390,24 @@ export default function EditorLayout() {
     if (mode !== "group") setChangeGroupMode(false);
   };
 
+  const handlePersist = async () => {
+    try {
+      setSaveStatus("Saving to backend...");
+      const res = await fetch(`http://localhost:8000/rooms/${roomId}/masks`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masks, groups }),
+      });
+      if (!res.ok) throw new Error("Failed to persist");
+      setSaveStatus("Persisted to database");
+      setTimeout(() => setSaveStatus(null), 2000);
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("Error saving to database");
+      setTimeout(() => setSaveStatus(null), 2500);
+    }
+  };
+
   return (
     <div className="flex h-screen relative">
       <Sidebar
@@ -399,6 +425,7 @@ export default function EditorLayout() {
         onDeleteGroup={handleDeleteGroup}
         onDeleteEmptyGroups={handleDeleteEmptyGroups}
         onMaskClick={handleMaskClickFromSidebar}
+        onPersist={handlePersist}
       />
 
       <div
@@ -472,6 +499,7 @@ export default function EditorLayout() {
           isDrawMode={isDrawMode}
           onSaveNewMask={handleSaveNewMask}
           onUpdateMaskPosition={handleUpdateMaskPosition}
+          onUpdateMaskPolygons={handleUpdateMaskPolygons}
           bgImageUrl={bgImageUrl}
         />
       </div>

@@ -11,6 +11,7 @@ from services.room_analysis.image_preprocessor import preprocess_floorplan_for_s
 from services.room_analysis.mask_generator import MaskGenerator
 from services.room_analysis.grouping_engine import build_groups, save_groups_to_json
 from services.room_analysis.mask_and_group_combiner import combine_masks_and_groups
+from services.room_analysis.mask_drawer import draw_masks_on_image
 
 
 def update_room_analysis_status(room_id: str, status: str, progress: int, message: str = "", extra_fields: dict = None):
@@ -70,12 +71,12 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
         if img_bgr is None:
             raise ValueError(f"Could not read image using OpenCV: {input_image_path}")
             
-        preprocess_floorplan_for_sam(
-            img_bgr=img_bgr,
-            save_output=True,
-            output_dir=room_output_dir,
-            output_name="preprocessed.png"
-        )
+        # preprocess_floorplan_for_sam(
+        #     img_bgr=img_bgr,
+        #     save_output=True,
+        #     output_dir=room_output_dir,
+        #     output_name="preprocessed.png"
+        # )
 
         # 3. Generate Masks (SAM)
         update_room_analysis_status(room_id, "generating_masks", 30, "Generating segmentation masks using SAM Model (This may take a while)...")
@@ -90,6 +91,15 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
             image_path=preprocessed_img_path,
             output_pkl_path=masks_pkl_path,
             do_merge=True
+        )
+
+        # 3.5. [DEBUG] Draw Masks overlaid on preprocessed image
+        debug_output_path = os.path.join(room_output_dir, "sam_output.png")
+        update_room_analysis_status(room_id, "generating_masks", 65, "Drawing mask debug overlay...")
+        draw_masks_on_image(
+            image_path=preprocessed_img_path,
+            pkl_path=masks_pkl_path,
+            output_path=debug_output_path
         )
 
         # 4. Group Masks
